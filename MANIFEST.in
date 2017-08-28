@@ -1,0 +1,5 @@
+include MANIFEST.in
+include setup.py
+recursive-include tmi_viewer *
+recursive-include bin *
+global-exclude *.pyc
