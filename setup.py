@@ -5,7 +5,7 @@ from distutils.command.sdist import sdist
 from setuptools import setup
 
 PACKAGE_NAME = "tmi_viewer"
-BUILD_REQUIRES = ["tfce-mediation", "pyside", "mayavi"]
+BUILD_REQUIRES = ["tfce-mediation", "mayavi"]
 
 CLASSIFIERS = ["Development Status :: 3 - Alpha",
   "Environment :: Console",
@@ -48,7 +48,7 @@ if os.path.exists('MANIFEST'):
 if parse_setuppy_commands():
   from numpy.distutils.core import setup
 
-setup(name = PACKAGE_NAME, version = "0.0.1",
+setup(name = PACKAGE_NAME, version = "0.0.2",
   maintainer = "Tristram Lett",
   maintainer_email = "tristram.lett@charite.de",
   description = "tmi_viewer",

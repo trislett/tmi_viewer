@@ -26,21 +26,20 @@ from tfce_mediation.tm_func import print_tmi_history
 from tfce_mediation.pyfunc import convert_voxel
 
 # hopefully safer loading of mayavi
+if 'QT_API' not in os.environ:
+	os.environ['QT_API'] = 'pyqt'
 try:
 	from mayavi import mlab
 except:
-	if 'QT_API' not in os.environ: 
-		os.environ['QT_API'] = 'pyside'
-	try: 
-		from mayavi import mlab
-	except:
-		os.environ['QT_API'] = 'pyqt'
-		from mayavi import mlab
+	print "Trying pyside"
+	os.environ['QT_API'] = 'pyside'
+	from mayavi import mlab
+
 
 DESCRIPTION = """
-Display surface statistics from a tmi file.
+Display surfaces and volumes from a tmi file.
 
-Note: this script relies on Mayavi. If you use, please cite:
+Note: this script relies on Mayavi. If you use it, please cite:
 Ramachandran, P. and Varoquaux, G., `Mayavi: 3D Visualization of Scientific Data` IEEE Computing in Science & Engineering, 13 (2), pp. 40-51 (2011)
 """
 
