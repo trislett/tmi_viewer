@@ -6,7 +6,7 @@
 
 * [VTK](http://www.vtk.org/download/)
 
-For ubuntu:
+For Ubuntu:
 ```sudo apt-get install vtk6 python-tvk```
 
 For OSX:
