@@ -1,9 +1,10 @@
 # tmi_viewer: Neuroimaging Viewer for TMI files
 
-### Installation
+## Installation
 
-Requirements:
-[VTK](http://www.vtk.org/download/)
+### Requirements:
+
+* [VTK](http://www.vtk.org/download/)
 
 For ubuntu:
 ```sudo apt-get install vtk6 python-tvk```
@@ -11,5 +12,7 @@ For ubuntu:
 For OSX:
 ```brew install vtk```
 
-Installation:
+### Installation:
+
+Using PIP:
 ```sudo -H python pip install -U tmi_viewer```
