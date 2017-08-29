@@ -14,5 +14,8 @@ For OSX:
 
 ### Installation:
 
-Using PIP:
-```sudo -H python pip install -U tmi_viewer```
+Using PIP (Recommended):
+```sudo -H pip install -U tmi_viewer```
+
+From source
+```sudo python setup.py install```
