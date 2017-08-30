@@ -129,8 +129,16 @@ def run(opts):
 			scalar_data = np.zeros((mask.shape[0]))
 			scalar_data[mask[:,0,0]] = image_array[0][start:end,c_contrast]
 
-			surf = mlab.triangular_mesh(vertex_array[c_surf][:,0],vertex_array[c_surf][:,1],vertex_array[c_surf][:,2],face_array[c_surf], scalars=scalar_data, vmin=opts.thresholds[0], vmax=opts.thresholds[1], name = maskname_array[c_mask])
+			surf = mlab.triangular_mesh(vertex_array[c_surf][:,0],
+				vertex_array[c_surf][:,1],
+				vertex_array[c_surf][:,2],
+				face_array[c_surf],
+				scalars=scalar_data,
+				vmin=opts.thresholds[0],
+				vmax=opts.thresholds[1],
+				name = maskname_array[c_mask])
 			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
+			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
 	if opts.displayvoxelmask:
 
@@ -150,10 +158,14 @@ def run(opts):
 			mask = masking_array[c_mask]
 			scalar_data = np.zeros((mask.shape[0],mask.shape[1],mask.shape[2]))
 			scalar_data[mask] = image_array[0][start:end,c_contrast]
-			v, f, values = convert_voxel(scalar_data, affine = affine_array[c_mask], absthreshold = opts.thresholds[0])
-			surf = mlab.triangular_mesh(v[:,0],v[:,1],v[:,2],f, scalars=values, scale_factor=0, vmin=opts.thresholds[0], vmax=opts.thresholds[1], name = maskname_array[c_mask], transparent=True)
+			v, f, values = convert_voxel(scalar_data, affine = affine_array[c_mask])
+			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
+				scalars=values, 
+				vmin=opts.thresholds[0],
+				vmax=opts.thresholds[1],
+				name = maskname_array[c_mask])
 			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
-
+			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 	mlab.show()
 
 if __name__ == "__main__":
