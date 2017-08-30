@@ -7,6 +7,7 @@
 
 ### Requirements:
 
+* [TFCE_mediation](https://github.com/trislett/TFCE_mediation)
 * [VTK](http://www.vtk.org/download/)
 
 For Ubuntu:
