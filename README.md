@@ -1,4 +1,4 @@
-# tmi_viewer: Vertex/Voxel Neuroimage Rendering for TMI files
+# TMI_Viewer: Vertex/Voxel Rendering for TMI files
 
 
 ![Splash type schematic](https://github.com/trislett/TFCE_mediation/blob/master/tfce_mediation/doc/tmi_viewer_multimodal.png "Schematic")
