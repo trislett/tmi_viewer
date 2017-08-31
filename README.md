@@ -23,4 +23,4 @@ Using PIP (Recommended):
 
 From source:
 ```sudo python setup.py install```
- - Additional requirement: (mayavi)[http://docs.enthought.com/mayavi/mayavi/]
+ - Additional requirement: [mayavi](http://docs.enthought.com/mayavi/mayavi/)
