@@ -21,5 +21,6 @@ For OSX:
 Using PIP (Recommended):
 ```sudo -H pip install -U tmi_viewer```
 
-From source
+From source:
 ```sudo python setup.py install```
+ - Additional requirement: (mayavi)[http://docs.enthought.com/mayavi/mayavi/]
