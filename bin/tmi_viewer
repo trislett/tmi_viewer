@@ -20,10 +20,11 @@ from __future__ import division
 import os
 import numpy as np
 import argparse as ap
+import nibabel as nib
 
 from tfce_mediation.tm_io import read_tm_filetype
 from tfce_mediation.tm_func import print_tmi_history
-from tfce_mediation.pyfunc import convert_voxel
+from tfce_mediation.pyfunc import convert_voxel, convert_fs
 
 # hopefully safer loading of mayavi
 if 'QT_API' not in os.environ:
@@ -35,13 +36,18 @@ except:
 	os.environ['QT_API'] = 'pyside'
 	from mayavi import mlab
 
+#	mlab.view(180.0, 90.0,390.8504872130444, [ -1.47590637e-02, -1.59298859e+01, 1.73381367e+01])
+#	mlab.savefig('test.png')
+
 
 DESCRIPTION = """
 Display surfaces and volumes from a tmi file.
 
-Note: this script relies on Mayavi. If you use it, please cite:
+This script relies on Mayavi. If you use it please cite:
+
 Ramachandran, P. and Varoquaux, G., `Mayavi: 3D Visualization of Scientific Data` IEEE Computing in Science & Engineering, 13 (2), pp. 40-51 (2011)
 """
+
 
 def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION, formatter_class=ap.RawTextHelpFormatter)):
 
@@ -50,24 +56,21 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION, formatte
 		nargs=1, 
 		metavar='*.tmi',
 		required=True)
-	group = ap.add_mutually_exclusive_group(required=True)
-	group.add_argument("-oh", "--history",
+	ap.add_argument("-oh", "--history",
 		help="Output tmi file history and exits.", 
 		action='store_true')
-	group.add_argument("-d", "--display",
+	ap.add_argument("-d", "--display",
 		help="Select which object to display. The mask, surface, contrast must be entered as integers (check values with -oh). Multiple objects can be displayed. The input must be divisible by three.",
 		nargs = '+',
 		type = int,
 		metavar = 'int')
-	group.add_argument("--onlyvoxel",
-		help="display only voxel images", 
-		action='store_true')
 	# optional
-	ap.add_argument("-dm", "--displayvoxelmask",
-		help = "Display a voxel surface.", 
+	ap.add_argument("-dv", "--displayvoxelmask",
+		help = "Display a volume as a surface. The mask and contrast must be entered as integers (check values with -oh).", 
 		nargs = '+',
 		type = int,
 		metavar = 'int')
+
 	ap.add_argument("-lut", "--lookuptable",
 		help = "Set the color map to display.", 
 		choices = ('red-yellow','blue-lightblue','r_y','b_lb'),
@@ -84,6 +87,32 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION, formatte
 		default=[255],
 		type = int,
 		nargs = 1)
+	ap.add_argument("-o", "--opacity",
+		help = "Set opacity [0 to 1]", 
+		default=1.0,
+		type = float,
+		nargs = 1)
+
+	#new
+	ap.add_argument("-ds", "--displaysurface",
+		help = "Display a surface without a scalar (i.e., just the surface).", 
+		nargs = '+',
+		type = int,
+		metavar = 'int')
+	ap.add_argument("-iv", "--importvolume",
+		help = "Import a volume (nifti or minc). e.g., -iv mean_FA_skeleton_mask.nii.gz", 
+		nargs = '+',
+		type = str,
+		metavar = 'str')
+	ap.add_argument("-biv", "--binarizeimportvolume",
+		help = "test", 
+		action = 'store_true')
+	ap.add_argument("-ifs", "--importfreesurfer",
+		help = "Import a freesurfer surface (use 'tm_multimodal create-tmi' to add other surface types). e.g., -ifs $SUBJECT_DIR/fsaverage/surf/lh.midthickness", 
+		nargs = '+',
+		type = str,
+		metavar = 'str')
+
 	return ap
 
 def run(opts):
@@ -134,6 +163,7 @@ def run(opts):
 				vertex_array[c_surf][:,2],
 				face_array[c_surf],
 				scalars=scalar_data,
+				opacity = opts.opacity[0],
 				vmin=opts.thresholds[0],
 				vmax=opts.thresholds[1],
 				name = maskname_array[c_mask])
@@ -166,6 +196,43 @@ def run(opts):
 				name = maskname_array[c_mask])
 			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
+
+	if opts.displaysurface:
+		for c_surf in opts.displaysurface:
+			surf = mlab.triangular_mesh(vertex_array[c_surf][:,0],
+				vertex_array[c_surf][:,1],
+				vertex_array[c_surf][:,2],
+				face_array[c_surf],
+				opacity = opts.opacity[0],
+				name = surfname[c_surf],
+				color = (227/255, 218/255, 201/255))
+			surf.actor.mapper.interpolate_scalars_before_mapping = 1
+
+	if opts.importvolume:
+		for volume in opts.importvolume:
+			invol = nib.load(volume)
+			data = invol.get_data()
+			if opts.binarizeimportvolume:
+				data[data != 0] = 1
+			v, f, values = convert_voxel(data, affine = invol.get_affine())
+			if opts.binarizeimportvolume:
+				values[values != 0] = 1
+			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
+				scalars = values, 
+				name = volume,
+				opacity = opts.opacity[0],
+				color = (227/255, 218/255, 201/255))
+			surf.actor.mapper.interpolate_scalars_before_mapping = 1
+
+	if opts.importfreesurfer:
+		for insurf in opts.importfreesurfer:
+			v, f = convert_fs(insurf)
+			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
+				name = insurf,
+				opacity = opts.opacity[0],
+				color = (227/255, 218/255, 201/255))
+			surf.actor.mapper.interpolate_scalars_before_mapping = 1
+	surf.scene.background = (0,0,0)
 	mlab.show()
 
 if __name__ == "__main__":
