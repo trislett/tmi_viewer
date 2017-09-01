@@ -21,10 +21,12 @@ import os
 import numpy as np
 import argparse as ap
 import nibabel as nib
+import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 
 from tfce_mediation.tm_io import read_tm_filetype
 from tfce_mediation.tm_func import print_tmi_history
-from tfce_mediation.pyfunc import convert_voxel, convert_fs
+from tfce_mediation.pyfunc import convert_voxel, convert_fs, write_colorbar
 
 # hopefully safer loading of mayavi
 if 'QT_API' not in os.environ:
@@ -35,10 +37,6 @@ except:
 	print "Trying pyside"
 	os.environ['QT_API'] = 'pyside'
 	from mayavi import mlab
-
-#	mlab.view(180.0, 90.0,390.8504872130444, [ -1.47590637e-02, -1.59298859e+01, 1.73381367e+01])
-#	mlab.savefig('test.png')
-
 
 DESCRIPTION = """
 Display surfaces and volumes from a tmi file.
@@ -60,7 +58,9 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION, formatte
 		help="Output tmi file history and exits.", 
 		action='store_true')
 	ap.add_argument("-d", "--display",
-		help="Select which object to display. The mask, surface, contrast must be entered as integers (check values with -oh). Multiple objects can be displayed. The input must be divisible by three.",
+		help="""
+			Select which object to display. The mask, surface, contrast must be entered as integers (check values 
+			with -oh). Multiple objects can be displayed. The input must be divisible by three.""",
 		nargs = '+',
 		type = int,
 		metavar = 'int')
@@ -72,8 +72,9 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION, formatte
 		metavar = 'int')
 
 	ap.add_argument("-lut", "--lookuptable",
-		help = "Set the color map to display.", 
-		choices = ('red-yellow','blue-lightblue','r_y','b_lb'),
+		help = """
+			Set the color map to display. The lookuptable can be red-yellow (r_y), blue-lightblue (b_lb) or any 
+			matplotlib colorschemes (https://matplotlib.org/examples/color/colormaps_reference.html)""", 
 		type = str,
 		default = ['r_y'],
 		nargs = 1)
@@ -89,7 +90,7 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION, formatte
 		nargs = 1)
 	ap.add_argument("-o", "--opacity",
 		help = "Set opacity [0 to 1]", 
-		default=1.0,
+		default=[1.0],
 		type = float,
 		nargs = 1)
 
@@ -108,10 +109,23 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION, formatte
 		help = "test", 
 		action = 'store_true')
 	ap.add_argument("-ifs", "--importfreesurfer",
-		help = "Import a freesurfer surface (use 'tm_multimodal create-tmi' to add other surface types). e.g., -ifs $SUBJECT_DIR/fsaverage/surf/lh.midthickness", 
+		help = """
+			Import a freesurfer surface (use 'tm_multimodal create-tmi' to add other surface types). 
+			e.g., -ifs $SUBJECT_DIR/fsaverage/surf/lh.midthickness""", 
 		nargs = '+',
 		type = str,
 		metavar = 'str')
+	ap.add_argument("-save", "--savesnapshots",
+		help = "Save snapshots of the image. Input the basename of the output.", 
+		nargs = 1,
+		type = str,
+		metavar = 'basename')
+	ap.add_argument("--savetype",
+		help = "Choose output snapshot type by file extension. Default is %(default)s", 
+		nargs = 1,
+		type = str,
+		default = ['png'],
+		metavar = 'filetype')
 
 	return ap
 
@@ -136,7 +150,13 @@ def run(opts):
 	elif (str(opts.lookuptable[0]) == 'b_lb') or (str(opts.lookuptable[0]) == 'blue-lightblue'):
 		cmap_array = np.array(( np.zeros(256), np.linspace(0,255,256), (np.ones(256)*255), np.ones(256)*255.0)).T
 	else:
-		pass # change later
+		try:
+			cmap_array = eval('plt.cm.%s(np.arange(256))' % opts.lookuptable[0])
+		except:
+			print "Error: Lookup table '%s' is not recognized." % opts.lookuptable[0]
+			print "The lookup table can be red-yellow (r_y), blue-lightblue (b_lb) or any matplotlib colorschemes (https://matplotlib.org/examples/color/colormaps_reference.html)"
+			quit()
+		cmap_array *= 255
 	cmap_array[0] = [227,218,201,opts.alpha[0]] # set lowest threshold to bone
 
 	if opts.display:
@@ -232,6 +252,39 @@ def run(opts):
 				opacity = opts.opacity[0],
 				color = (227/255, 218/255, 201/255))
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
+
+	if opts.savesnapshots:
+
+		surf.scene.background = (0,0,0)
+
+		surf.scene.x_minus_view()
+		orientation = 'left'
+		mlab.savefig('%s_%s.%s' % (opts.savesnapshots[0], orientation, opts.savetype[0]), size = (1600,1400))
+		surf.scene.x_plus_view()
+		orientation = 'right'
+		mlab.savefig('%s_%s.%s' % (opts.savesnapshots[0], orientation, opts.savetype[0]), size = (1600,1400))
+
+		surf.scene.y_minus_view()
+		orientation = 'posterior'
+		mlab.savefig('%s_%s.%s' % (opts.savesnapshots[0], orientation, opts.savetype[0]), size = (1600,1400))
+		surf.scene.y_plus_view()
+		orientation = 'anterior'
+		mlab.savefig('%s_%s.%s' % (opts.savesnapshots[0], orientation, opts.savetype[0]), size = (1600,1400))
+
+		surf.scene.z_minus_view()
+		orientation = 'inferior'
+		mlab.savefig('%s_%s.%s' % (opts.savesnapshots[0], orientation, opts.savetype[0]), size = (1600,1400))
+		surf.scene.z_plus_view()
+		orientation = 'superior'
+		mlab.savefig('%s_%s.%s' % (opts.savesnapshots[0], orientation, opts.savetype[0]), size = (1600,1400))
+
+		surf.scene.isometric_view()
+		orientation = 'isometric'
+		mlab.savefig('%s_%s.%s' % (opts.savesnapshots[0], orientation, opts.savetype[0]), size = (1600,1400))
+
+		rl_cmap = colors.ListedColormap(cmap_array[:,0:3]/255)
+		write_colorbar(opts.thresholds, rl_cmap, opts.lookuptable[0])
+
 	surf.scene.background = (0,0,0)
 	mlab.show()
 
