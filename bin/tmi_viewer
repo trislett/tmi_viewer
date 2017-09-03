@@ -18,7 +18,9 @@
 
 from __future__ import division
 import os
+import sys
 import numpy as np
+import warnings
 import argparse as ap
 import nibabel as nib
 import matplotlib.pyplot as plt
@@ -26,7 +28,7 @@ import matplotlib.colors as colors
 
 from tfce_mediation.tm_io import read_tm_filetype
 from tfce_mediation.tm_func import print_tmi_history
-from tfce_mediation.pyfunc import convert_voxel, convert_fs, write_colorbar
+from tfce_mediation.pyfunc import convert_voxel, convert_fs, write_colorbar, create_adjac_vertex, surface_smooth
 
 # hopefully safer loading of mayavi
 if 'QT_API' not in os.environ:
@@ -49,7 +51,7 @@ Ramachandran, P. and Varoquaux, G., `Mayavi: 3D Visualization of Scientific Data
 
 def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION, formatter_class=ap.RawTextHelpFormatter)):
 
-	ap.add_argument("-i_tmi", "--inputtmi",
+	ap.add_argument("-i", "-i_tmi", "--inputtmi",
 		help="Input the *.tmi file containing the statistics to view.",
 		nargs=1, 
 		metavar='*.tmi',
@@ -121,15 +123,33 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION, formatte
 		type = str,
 		metavar = 'basename')
 	ap.add_argument("--savetype",
-		help = "Choose output snapshot type by file extension. Default is %(default)s", 
+		help = "Choose output snapshot type by file extension. Default is: %(default)s", 
 		nargs = 1,
 		type = str,
 		default = ['png'],
 		metavar = 'filetype')
+	ap.add_argument("-ss","--surfacesmoothing",
+		help = "Apply Laplician or Taubin smoothing before visualization. Input the numner of iterations (e.g., -ls 3)", 
+		nargs = 1,
+		type = int,
+		metavar = 'int')
+	ap.add_argument("-stype","--smoothingtype",
+		help = "Set type of surface smoothing to use. Default is: %(default)s", 
+		nargs = 1,
+		choices = ['laplacian','taubin'],
+		default = ['laplacian'],
+		metavar = 'str')
+
 
 	return ap
 
 def run(opts):
+	if len(sys.argv) <= 3:
+		opts.history = True
+
+	# 
+	warnings.filterwarnings('ignore')
+
 	# load tmi
 	_, image_array, masking_array, maskname_array, affine_array, vertex_array, face_array, surfname, _, tmi_history, columnids = read_tm_filetype(opts.inputtmi[0], verbose=False)
 	if opts.history:
@@ -161,7 +181,7 @@ def run(opts):
 
 	if opts.display:
 		if len(opts.display) % 3 != 0:
-			print "Error"
+			print "Error: There must be three inputs per surface (mask, surface, contrast)."
 			quit()
 		num_obj = int(len(opts.display) / 3)
 
@@ -177,11 +197,18 @@ def run(opts):
 			mask = masking_array[c_mask]
 			scalar_data = np.zeros((mask.shape[0]))
 			scalar_data[mask[:,0,0]] = image_array[0][start:end,c_contrast]
+			v = vertex_array[c_surf]
+			f = face_array[c_surf]
 
-			surf = mlab.triangular_mesh(vertex_array[c_surf][:,0],
-				vertex_array[c_surf][:,1],
-				vertex_array[c_surf][:,2],
-				face_array[c_surf],
+			if opts.surfacesmoothing:
+				adjacency = create_adjac_vertex(v,f)
+				for i in range(int(opts.surfacesmoothing[0])):
+					print "Smoothing interation: %d" % (i+1)
+					with warnings.catch_warnings():
+						warnings.simplefilter("ignore", category=RuntimeWarning)
+						v, f, scalar_data = surface_smooth(v, f, adjacency, iter_num = i, scalar = scalar_data, lambda_w = 1.0, mu_w = -1.1, mode = str(opts.smoothingtype[0]))
+
+			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
 				scalars=scalar_data,
 				opacity = opts.opacity[0],
 				vmin=opts.thresholds[0],
@@ -195,7 +222,7 @@ def run(opts):
 		cmap_array[0] = [227,218,201,0]
 
 		if len(opts.displayvoxelmask) % 2 != 0:
-			print "Error"
+			print "Error: There must be two inputs per voxel surface (mask, contrast)."
 			quit()
 
 		for j in range(int(len(opts.displayvoxelmask)/2)):
@@ -209,6 +236,14 @@ def run(opts):
 			scalar_data = np.zeros((mask.shape[0],mask.shape[1],mask.shape[2]))
 			scalar_data[mask] = image_array[0][start:end,c_contrast]
 			v, f, values = convert_voxel(scalar_data, affine = affine_array[c_mask])
+
+			if opts.surfacesmoothing:
+				adjacency = create_adjac_vertex(v,f)
+				for i in range(int(opts.surfacesmoothing[0])):
+					with warnings.catch_warnings():
+						warnings.simplefilter("ignore", category=RuntimeWarning)
+						v, f, scalar_data = surface_smooth(v, f, adjacency, i,  values, mode = str(opts.smoothingtype[0]))
+
 			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
 				scalars=values, 
 				vmin=opts.thresholds[0],
@@ -219,10 +254,18 @@ def run(opts):
 
 	if opts.displaysurface:
 		for c_surf in opts.displaysurface:
-			surf = mlab.triangular_mesh(vertex_array[c_surf][:,0],
-				vertex_array[c_surf][:,1],
-				vertex_array[c_surf][:,2],
-				face_array[c_surf],
+
+			v = vertex_array[c_surf]
+			f = face_array[c_surf]
+
+			if opts.surfacesmoothing:
+				adjacency = create_adjac_vertex(v,f)
+				for i in range(int(opts.surfacesmoothing[0])):
+					with warnings.catch_warnings():
+						warnings.simplefilter("ignore", category=RuntimeWarning)
+						v, f, scalar_data = surface_smooth(v, f, adjacency, i,  scalar_data, mode = str(opts.smoothingtype[0]))
+
+			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
 				opacity = opts.opacity[0],
 				name = surfname[c_surf],
 				color = (227/255, 218/255, 201/255))
@@ -232,11 +275,22 @@ def run(opts):
 		for volume in opts.importvolume:
 			invol = nib.load(volume)
 			data = invol.get_data()
+
 			if opts.binarizeimportvolume:
 				data[data != 0] = 1
+
 			v, f, values = convert_voxel(data, affine = invol.get_affine())
+
+			if opts.surfacesmoothing:
+				adjacency = create_adjac_vertex(v,f)
+				for i in range(int(opts.surfacesmoothing[0])):
+					with warnings.catch_warnings():
+						warnings.simplefilter("ignore", category=RuntimeWarning)
+						v, f, scalar_data = surface_smooth(v, f, adjacency, i,  values, mode = str(opts.smoothingtype[0]))
+
 			if opts.binarizeimportvolume:
 				values[values != 0] = 1
+
 			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
 				scalars = values, 
 				name = volume,
@@ -247,6 +301,14 @@ def run(opts):
 	if opts.importfreesurfer:
 		for insurf in opts.importfreesurfer:
 			v, f = convert_fs(insurf)
+
+			if opts.surfacesmoothing:
+				adjacency = create_adjac_vertex(v,f)
+				for i in range(int(opts.surfacesmoothing[0])):
+					with warnings.catch_warnings():
+						warnings.simplefilter("ignore", category=RuntimeWarning)
+						v, f, scalar_data = surface_smooth(v, f, adjacency, i,  scalar_data, mode = str(opts.smoothingtype[0]))
+
 			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
 				name = insurf,
 				opacity = opts.opacity[0],
