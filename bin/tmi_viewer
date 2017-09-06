@@ -28,7 +28,7 @@ import matplotlib.colors as colors
 
 from tfce_mediation.tm_io import read_tm_filetype
 from tfce_mediation.tm_func import print_tmi_history
-from tfce_mediation.pyfunc import convert_voxel, convert_fs, write_colorbar, create_adjac_vertex, surface_smooth
+from tfce_mediation.pyfunc import convert_voxel, convert_fs, write_colorbar, create_adjac_vertex, vectorized_surface_smooth
 
 # hopefully safer loading of mayavi
 if 'QT_API' not in os.environ:
@@ -129,12 +129,12 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION, formatte
 		default = ['png'],
 		metavar = 'filetype')
 	ap.add_argument("-ss","--surfacesmoothing",
-		help = "Apply Laplician or Taubin smoothing before visualization. Input the numner of iterations (e.g., -ls 3)", 
+		help = "Apply Laplician or Taubin smoothing before visualization. Input the numner of iterations (e.g., -ss 5)", 
 		nargs = 1,
 		type = int,
 		metavar = 'int')
 	ap.add_argument("-stype","--smoothingtype",
-		help = "Set type of surface smoothing to use. Default is: %(default)s", 
+		help = "Set type of surface smoothing to use (%(choices)s). The default is laplacian", 
 		nargs = 1,
 		choices = ['laplacian','taubin'],
 		default = ['laplacian'],
@@ -207,12 +207,10 @@ def run(opts):
 
 			if opts.surfacesmoothing:
 				adjacency = create_adjac_vertex(v,f)
-				for i in range(int(opts.surfacesmoothing[0])):
-					v, f, scalar_data = surface_smooth(v, f, adjacency,
-						iter_num = i,
-						scalar = scalar_data,
-						mode = str(opts.smoothingtype[0]),
-						v_weighted = True)
+				v, f, scalar_data = vectorized_surface_smooth(v, f, adjacency,
+					number_of_iter = int(opts.surfacesmoothing[0]),
+					scalar = scalar_data,
+					mode = str(opts.smoothingtype[0]))
 
 			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
 				scalars = scalar_data,
@@ -245,12 +243,10 @@ def run(opts):
 
 			if opts.surfacesmoothing:
 				adjacency = create_adjac_vertex(v,f)
-				for i in range(int(opts.surfacesmoothing[0])):
-					v, f, scalar_data = surface_smooth(v, f, adjacency,
-						iter_num = i,
-						scalar = scalar_data,
-						mode = str(opts.smoothingtype[0]),
-						v_weighted = True)
+				v, f, scalar_data = vectorized_surface_smooth(v, f, adjacency,
+					number_of_iter = int(opts.surfacesmoothing[0]),
+					scalar = scalar_data,
+					mode = str(opts.smoothingtype[0]))
 
 			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
 				scalars = scalar_data, 
@@ -268,11 +264,9 @@ def run(opts):
 
 			if opts.surfacesmoothing:
 				adjacency = create_adjac_vertex(v,f)
-				for i in range(int(opts.surfacesmoothing[0])):
-					v, f, scalar_data = surface_smooth(v, f, adjacency,
-						iter_num = i,
-						mode = str(opts.smoothingtype[0]),
-						v_weighted = True)
+				v, f = vectorized_surface_smooth(v, f, adjacency,
+					number_of_iter = int(opts.surfacesmoothing[0]),
+					mode = str(opts.smoothingtype[0]))
 
 			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
 				opacity = opts.opacity[0],
@@ -292,12 +286,10 @@ def run(opts):
 
 			if opts.surfacesmoothing:
 				adjacency = create_adjac_vertex(v,f)
-				for i in range(int(opts.surfacesmoothing[0])):
-					v, f, scalar_data = surface_smooth(v, f, adjacency,
-						iter_num = i,
-						scalar = scalar_data,
-						mode = str(opts.smoothingtype[0]),
-						v_weighted = True)
+				v, f, scalar_data = vectorized_surface_smooth(v, f, adjacency,
+					number_of_iter = int(opts.surfacesmoothing[0]),
+					scalar = scalar_data,
+					mode = str(opts.smoothingtype[0]))
 
 			if opts.binarizeimportvolume:
 				scalar_data[scalar_data != 0] = 1
@@ -315,11 +307,9 @@ def run(opts):
 
 			if opts.surfacesmoothing:
 				adjacency = create_adjac_vertex(v,f)
-				for i in range(int(opts.surfacesmoothing[0])):
-					v, f, scalar_data = surface_smooth(v, f, adjacency,
-						iter_num = i,
-						mode = str(opts.smoothingtype[0]),
-						v_weighted = True)
+				v, f = vectorized_surface_smooth(v, f, adjacency,
+					number_of_iter = int(opts.surfacesmoothing[0]),
+					mode = str(opts.smoothingtype[0]))
 
 			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
 				name = insurf,

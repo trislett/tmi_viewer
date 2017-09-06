@@ -48,7 +48,7 @@ if os.path.exists('MANIFEST'):
 if parse_setuppy_commands():
   from numpy.distutils.core import setup
 
-setup(name = PACKAGE_NAME, version = "0.0.6",
+setup(name = PACKAGE_NAME, version = "0.1.0",
   maintainer = "Tristram Lett",
   maintainer_email = "tristram.lett@charite.de",
   description = "tmi_viewer",
