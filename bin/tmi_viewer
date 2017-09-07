@@ -40,6 +40,17 @@ except:
 	os.environ['QT_API'] = 'pyside'
 	from mayavi import mlab
 
+def check_byteorder(np_array):
+	if sys.byteorder == 'little':
+		sys_bo = '<'
+	elif sys.byteorder == 'big':
+		sys_bo = '>'
+	else:
+		pass
+	if np_array.dtype.byteorder != sys_bo:
+		np_array = np_array.byteswap().newbyteorder()
+	return np_array
+
 DESCRIPTION = """
 Display surfaces and volumes from a tmi file.
 
@@ -48,14 +59,15 @@ This script relies on Mayavi. If you use it please cite:
 Ramachandran, P. and Varoquaux, G., `Mayavi: 3D Visualization of Scientific Data` IEEE Computing in Science & Engineering, 13 (2), pp. 40-51 (2011)
 """
 
-
-def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION, formatter_class=ap.RawTextHelpFormatter)):
-
-	ap.add_argument("-i", "-i_tmi", "--inputtmi",
+def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
+	group = ap.add_mutually_exclusive_group(required=True)
+	group.add_argument("-i", "-i_tmi", "--inputtmi",
 		help="Input the *.tmi file containing the statistics to view.",
 		nargs=1, 
-		metavar='*.tmi',
-		required=True)
+		metavar='*.tmi')
+	group.add_argument("--no-tmi",
+		help="Do not input a TMI file.",
+		action = 'store_true')
 	ap.add_argument("-oh", "--history",
 		help="Output tmi file history and exits.", 
 		action='store_true')
@@ -81,7 +93,7 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION, formatte
 		default = ['r_y'],
 		nargs = 1)
 	ap.add_argument("-t", "--thresholds",
-		help = "Set upper and lower thresholds", 
+		help = "Set lower and upper thresholds. Default is: %(default)s", 
 		default=[.95,1],
 		type = float,
 		nargs = 2)
@@ -107,13 +119,23 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION, formatte
 		nargs = '+',
 		type = str,
 		metavar = 'str')
-	ap.add_argument("-biv", "--binarizeimportvolume",
-		help = "test", 
-		action = 'store_true')
+	ap.add_argument("-biv", "--binarizedimportvolume",
+		help = "Import a volume (nifti or minc) and set all non-zero values to one. e.g., -biv mean_FA_skeleton_mask.nii.gz", 
+		nargs = '+',
+		type = str,
+		metavar = 'str')
 	ap.add_argument("-ifs", "--importfreesurfer",
 		help = """
 			Import a freesurfer surface (use 'tm_multimodal create-tmi' to add other surface types). 
 			e.g., -ifs $SUBJECT_DIR/fsaverage/surf/lh.midthickness""", 
+		nargs = '+',
+		type = str,
+		metavar = 'str')
+	ap.add_argument("-fsmgh", "--importfreesurfermgh",
+		help = """
+			Import a freesurfer scalar (mgh) file(s) that match the input surface(s). The number of inputs 
+			must match the -ifs inputs. e.g., -ifs ?h.midthickness -fsmgh ?h_results_file.mgh
+			""", 
 		nargs = '+',
 		type = str,
 		metavar = 'str')
@@ -129,12 +151,14 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION, formatte
 		default = ['png'],
 		metavar = 'filetype')
 	ap.add_argument("-ss","--surfacesmoothing",
-		help = "Apply Laplician or Taubin smoothing before visualization. Input the numner of iterations (e.g., -ss 5)", 
+		help = "Apply Laplician or Taubin smoothing before visualization. Input the number of iterations (e.g., -ss 5).", 
 		nargs = 1,
 		type = int,
 		metavar = 'int')
 	ap.add_argument("-stype","--smoothingtype",
-		help = "Set type of surface smoothing to use (%(choices)s). The default is laplacian", 
+		help = """Set type of surface smoothing to use (choices are: %(choices)s). The default is laplacian
+				The Taubin (aka low-pass) filter smooths curves/surfaces without the shrinkage of the laplacian filter.
+				""", 
 		nargs = 1,
 		choices = ['laplacian','taubin'],
 		default = ['laplacian'],
@@ -146,10 +170,13 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION, formatte
 def run(opts):
 	# if not enough inputs, output history
 	if len(sys.argv) <= 3:
-		opts.history = True
+		if opts.inputtmi:
+			opts.history = True
+		else:
+			print "Error: no surface or volume imports (use -iv or -ifs)."
+			quit()
 
 	# load tmi
-	_, image_array, masking_array, maskname_array, affine_array, vertex_array, face_array, surfname, _, tmi_history, columnids = read_tm_filetype(opts.inputtmi[0], verbose=False)
 	if opts.history:
 		num_con = image_array[0].shape[1]
 		if num_con > 500: # safer
@@ -161,13 +188,15 @@ def run(opts):
 			contrast_names = columnids)
 		quit()
 
-	# get the positions of masked data in image_array
-	pointer = 0
-	position_array = [0]
-	for i in range(len(masking_array)):
-		pointer += len(masking_array[i][masking_array[i]==True])
-		position_array.append(pointer)
-	del pointer
+	if opts.inputtmi:
+		_, image_array, masking_array, maskname_array, affine_array, vertex_array, face_array, surfname, _, tmi_history, columnids = read_tm_filetype(opts.inputtmi[0], verbose=False)
+		# get the positions of masked data in image_array
+		pointer = 0
+		position_array = [0]
+		for i in range(len(masking_array)):
+			pointer += len(masking_array[i][masking_array[i]==True])
+			position_array.append(pointer)
+		del pointer
 
 	# make custom look-up table
 	if (str(opts.lookuptable[0]) == 'r_y') or (str(opts.lookuptable[0]) == 'red-yellow'):
@@ -277,11 +306,7 @@ def run(opts):
 	if opts.importvolume:
 		for volume in opts.importvolume:
 			invol = nib.load(volume)
-			data = invol.get_data()
-
-			if opts.binarizeimportvolume:
-				data[data != 0] = 1
-
+			data = check_byteorder(invol.get_data())
 			v, f, scalar_data = convert_voxel(data, affine = invol.get_affine())
 
 			if opts.surfacesmoothing:
@@ -291,8 +316,30 @@ def run(opts):
 					scalar = scalar_data,
 					mode = str(opts.smoothingtype[0]))
 
-			if opts.binarizeimportvolume:
-				scalar_data[scalar_data != 0] = 1
+			if np.mean(scalar_data[scalar_data != 0]) == 1:
+				surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
+					scalars = scalar_data, 
+					name = volume,
+					opacity = opts.opacity[0],
+					color = (227/255, 218/255, 201/255))
+			else:
+				surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
+					scalars = scalar_data, 
+					vmin = opts.thresholds[0],
+					vmax = opts.thresholds[1],
+					name = volume)
+				cmap_array[0] = [227,218,201,0]
+				surf.module_manager.scalar_lut_manager.lut.table = cmap_array
+			surf.actor.mapper.interpolate_scalars_before_mapping = 1
+
+	if opts.binarizedimportvolume:
+		for volume in opts.binarizedimportvolume:
+			invol = nib.load(volume)
+			data = check_byteorder(invol.get_data())
+
+			data[data != 0] = 1 # binary sandwich
+			v, f, scalar_data = convert_voxel(data, affine = invol.get_affine())
+			scalar_data[scalar_data != 0] = 1
 
 			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
 				scalars = scalar_data, 
@@ -304,17 +351,42 @@ def run(opts):
 	if opts.importfreesurfer:
 		for insurf in opts.importfreesurfer:
 			v, f = convert_fs(insurf)
+			if opts.importfreesurfermgh:
+				mghvol = opts.importfreesurfermgh[int(np.argwhere(np.array(opts.importfreesurfer)==insurf))] # super hacky
+				if len(opts.importfreesurfer) != len(opts.importfreesurfermgh):
+					print "The number of -fsmgh inputs must match the -ifs inputs."
+					quit()
+				invol = nib.load(mghvol).get_data()
+				if invol.ndim != 3: 
+					print "Scalar (MGH) files with %d dimensions are not supported (hint: there should only be one subject/contrast)." % invol.ndim
+				scalar_data = check_byteorder(np.squeeze(invol)) # annoying endianess issue fix
 
-			if opts.surfacesmoothing:
-				adjacency = create_adjac_vertex(v,f)
-				v, f = vectorized_surface_smooth(v, f, adjacency,
-					number_of_iter = int(opts.surfacesmoothing[0]),
-					mode = str(opts.smoothingtype[0]))
+				if opts.surfacesmoothing:
+					adjacency = create_adjac_vertex(v,f)
+					v, f, scalar_data = vectorized_surface_smooth(v, f, adjacency,
+						number_of_iter = int(opts.surfacesmoothing[0]),
+						scalar = scalar_data,
+						mode = str(opts.smoothingtype[0]))
 
-			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
-				name = insurf,
-				opacity = opts.opacity[0],
-				color = (227/255, 218/255, 201/255))
+				surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
+					scalars = scalar_data, 
+					vmin = opts.thresholds[0],
+					vmax = opts.thresholds[1],
+					name = mghvol)
+				
+				surf.module_manager.scalar_lut_manager.lut.table = cmap_array
+
+			else:
+				if opts.surfacesmoothing:
+					adjacency = create_adjac_vertex(v,f)
+					v, f = vectorized_surface_smooth(v, f, adjacency,
+						number_of_iter = int(opts.surfacesmoothing[0]),
+						mode = str(opts.smoothingtype[0]))
+
+				surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
+					name = insurf,
+					opacity = opts.opacity[0],
+					color = (227/255, 218/255, 201/255))
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
 	if opts.savesnapshots:
