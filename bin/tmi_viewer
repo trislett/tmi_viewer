@@ -25,6 +25,8 @@ import argparse as ap
 import nibabel as nib
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
+import warnings
+import matplotlib.cbook
 
 from tfce_mediation.tm_io import read_tm_filetype
 from tfce_mediation.tm_func import print_tmi_history
@@ -57,6 +59,9 @@ def display_matplotlib_luts():
 	# This example comes from the Cookbook on www.scipy.org. According to the
 	# history, Andrew Straw did the conversion from an old page, but it is
 	# unclear who the original author is.
+
+	plt.switch_backend('Qt4Agg')
+	warnings.filterwarnings("ignore",category=matplotlib.cbook.mplDeprecation)
 
 	a = np.linspace(0, 1, 256).reshape(1,-1)
 	a = np.vstack((a,a))
@@ -107,7 +112,7 @@ def get_cmap_array(lut, alpha = 255, zero_lower = True, zero_upper = False, base
 		except:
 			print "Error: Lookup table '%s' is not recognized." % lut
 			print "The lookup table can be red-yellow (r_y), blue-lightblue (b_lb) or any matplotlib colorschemes (https://matplotlib.org/examples/color/colormaps_reference.html)"
-			quit()
+			sys.exit()
 		cmap_array *= 255
 	if c_reverse:
 		cmap_array = cmap_array[::-1]
@@ -248,7 +253,7 @@ def run(opts):
 
 	if opts.plotluts:
 		display_matplotlib_luts()
-		quit()
+		sys.exit()
 
 	# if not enough inputs, output history
 	if len(sys.argv) <= 3:
@@ -256,7 +261,7 @@ def run(opts):
 			opts.history = True
 		else:
 			print "Error: no surface or volume imports (use -iv or -ifs)."
-			quit()
+			sys.exit()
 
 	# load tmi
 	if opts.history:
@@ -268,7 +273,7 @@ def run(opts):
 			surfname, 
 			num_con = num_con,
 			contrast_names = columnids)
-		quit()
+		sys.exit()
 
 	if opts.inputtmi:
 		_, image_array, masking_array, maskname_array, affine_array, vertex_array, face_array, surfname, _, tmi_history, columnids = read_tm_filetype(opts.inputtmi[0], verbose=False)
@@ -286,7 +291,7 @@ def run(opts):
 	if opts.display:
 		if len(opts.display) % 3 != 0:
 			print "Error: There must be three inputs per surface (mask, surface, contrast)."
-			quit()
+			sys.exit()
 		num_obj = int(len(opts.display) / 3)
 
 		# display the surfaces
@@ -326,7 +331,7 @@ def run(opts):
 
 		if len(opts.displayvoxelmask) % 2 != 0:
 			print "Error: There must be two inputs per voxel surface (mask, contrast)."
-			quit()
+			sys.exit()
 
 		for j in range(int(len(opts.displayvoxelmask)/2)):
 			c_mask = opts.displayvoxelmask[0 + int(j*2)]
@@ -430,7 +435,7 @@ def run(opts):
 			vol_occupancy = float(opts.thresholdimportvolume[4])
 		else:
 			print "Error -ivt must have three or four inputs"
-			quit()
+			sys.exit()
 		invol = nib.load(str(opts.thresholdimportvolume[0]))
 		data = check_byteorder(invol.get_data())
 		v, f, scalar_data = convert_voxel(data, affine = invol.get_affine())
@@ -458,7 +463,7 @@ def run(opts):
 				mghvol = opts.importfreesurfermgh[int(np.argwhere(np.array(opts.importfreesurfer)==insurf))] # super hacky
 				if len(opts.importfreesurfer) != len(opts.importfreesurfermgh):
 					print "The number of -fsmgh inputs must match the -ifs inputs."
-					quit()
+					sys.exit()
 				invol = nib.load(mghvol).get_data()
 				if invol.ndim != 3: 
 					print "Scalar (MGH) files with %d dimensions are not supported (hint: there should only be one subject/contrast)." % invol.ndim
