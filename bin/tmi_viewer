@@ -51,6 +51,72 @@ def check_byteorder(np_array):
 		np_array = np_array.byteswap().newbyteorder()
 	return np_array
 
+def display_matplotlib_luts():
+	# Adapted from https://matplotlib.org/1.2.1/examples/pylab_examples/show_colormaps.html
+
+	# This example comes from the Cookbook on www.scipy.org. According to the
+	# history, Andrew Straw did the conversion from an old page, but it is
+	# unclear who the original author is.
+
+	a = np.linspace(0, 1, 256).reshape(1,-1)
+	a = np.vstack((a,a))
+
+	maps = sorted(m for m in plt.cm.datad if not m.endswith("_r"))
+	maps.append(u'red-yellow')
+	maps.append(u'blue-lightblue')
+	maps.append(u'green-lightgreen')
+	nmaps = len(maps) + 1
+
+	fig = plt.figure(figsize=(8,10))
+	fig.subplots_adjust(top=0.99, bottom=0.01, left=0.2, right=0.99)
+	for i,m in enumerate(maps):
+		ax = plt.subplot(nmaps, 1, i+1)
+		plt.axis("off")
+		if m == 'red-yellow':
+			cmap_array = np.array(( (np.ones(256)*255), np.linspace(0,255,256), np.zeros(256) )).T / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'blue-lightblue':
+			cmap_array = np.array(( np.zeros(256), np.linspace(0,255,256), (np.ones(256)*255) )).T / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'green-lightgreen':
+			cmap_array = np.array(( np.zeros(256), np.linspace(128,255,256), np.zeros(256) )).T / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		else:
+			plt.imshow(a, aspect='auto', cmap=plt.get_cmap(m), origin='lower')
+		pos = list(ax.get_position().bounds)
+		fig.text(pos[0] - 0.01, pos[1], m, fontsize=10, horizontalalignment='right')
+	plt.show()
+
+
+def get_cmap_array(lut, alpha = 255, zero_lower = True, zero_upper = False, base_color = [227,218,201], c_reverse = False):
+	if len(base_color) == 3:
+		base_color.append(int(alpha))
+	if lut.endswith('_r'):
+		c_reverse = lut.endswith('_r')
+		lut = lut[:-2]
+	# make custom look-up table
+	if (str(lut) == 'r-y') or (str(lut) == 'red-yellow'):
+		cmap_array = np.array(( (np.ones(256)*255), np.linspace(0,255,256), np.zeros(256), np.ones(256)*255.0)).T
+	elif (str(lut) == 'b-lb') or (str(lut) == 'blue-lightblue'):
+		cmap_array = np.array(( np.zeros(256), np.linspace(0,255,256), (np.ones(256)*255), np.ones(256)*255.0)).T
+	elif (str(lut) == 'g-lg') or (str(lut) == 'green-lightgreen'):
+		cmap_array = np.array(( np.zeros(256), np.linspace(0,255,256), (np.zeros(256)*255), np.ones(256)*255.0)).T
+	else:
+		try:
+			cmap_array = eval('plt.cm.%s(np.arange(256))' % lut)
+		except:
+			print "Error: Lookup table '%s' is not recognized." % lut
+			print "The lookup table can be red-yellow (r_y), blue-lightblue (b_lb) or any matplotlib colorschemes (https://matplotlib.org/examples/color/colormaps_reference.html)"
+			quit()
+		cmap_array *= 255
+	if c_reverse:
+		cmap_array = cmap_array[::-1]
+	if zero_lower:
+		cmap_array[0] = base_color
+	if zero_upper:
+		cmap_array[-1] = base_color
+	return cmap_array
+
 DESCRIPTION = """
 Display surfaces and volumes from a tmi file.
 
@@ -68,6 +134,7 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 	group.add_argument("--no-tmi",
 		help="Do not input a TMI file.",
 		action = 'store_true')
+
 	ap.add_argument("-oh", "--history",
 		help="Output tmi file history and exits.", 
 		action='store_true')
@@ -87,11 +154,14 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 
 	ap.add_argument("-lut", "--lookuptable",
 		help = """
-			Set the color map to display. The lookuptable can be red-yellow (r_y), blue-lightblue (b_lb) or any 
-			matplotlib colorschemes (https://matplotlib.org/examples/color/colormaps_reference.html)""", 
+			Set the color map to display. The lookuptable can be red-yellow (r-y), blue-lightblue (b-lb), green-lightgreen (g-lg) or any 
+			matplotlib colorschemes. Any lut can be reverse by appending _r (e.g. -lut red-yellow_r). Use --plotluts to see the available lookuptables""", 
 		type = str,
-		default = ['r_y'],
+		default = ['r-y'],
 		nargs = 1)
+	group.add_argument("--plotluts",
+		help = "Plots the avalable lookup tables, and exits.",
+		action = 'store_true')
 	ap.add_argument("-t", "--thresholds",
 		help = "Set lower and upper thresholds. Default is: %(default)s", 
 		default=[.95,1],
@@ -115,15 +185,22 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		type = int,
 		metavar = 'int')
 	ap.add_argument("-iv", "--importvolume",
-		help = "Import a volume (nifti or minc). e.g., -iv mean_FA_skeleton_mask.nii.gz", 
+		help = "Import volume(s) (nifti or minc). e.g., -iv mean_FA_skeleton_mask.nii.gz", 
 		nargs = '+',
 		type = str,
 		metavar = 'str')
-	ap.add_argument("-biv", "--binarizedimportvolume",
-		help = "Import a volume (nifti or minc) and set all non-zero values to one. e.g., -biv mean_FA_skeleton_mask.nii.gz", 
+	ap.add_argument("-ivb", "--binarizedimportvolume",
+		help = "Import volume(s) (nifti or minc) and set all non-zero values to one. e.g., -biv mean_FA_skeleton_mask.nii.gz", 
 		nargs = '+',
 		type = str,
 		metavar = 'str')
+	ap.add_argument("-ivt", "--thresholdimportvolume",
+		help = """
+			Import a volume (nifti or minc) and apply a lower and upper threshold. e.g., -ivt mean_FA_skeleton_mask.nii.gz  0.2 0.8. 
+			Only one volume can be added. A lookup table can be specified as the forth argument (the default is the -lut option).
+		""", 
+		nargs = '*',
+		metavar = ['str|float|float|str'])
 	ap.add_argument("-ifs", "--importfreesurfer",
 		help = """
 			Import a freesurfer surface (use 'tm_multimodal create-tmi' to add other surface types). 
@@ -168,6 +245,11 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 	return ap
 
 def run(opts):
+
+	if opts.plotluts:
+		display_matplotlib_luts()
+		quit()
+
 	# if not enough inputs, output history
 	if len(sys.argv) <= 3:
 		if opts.inputtmi:
@@ -199,19 +281,7 @@ def run(opts):
 		del pointer
 
 	# make custom look-up table
-	if (str(opts.lookuptable[0]) == 'r_y') or (str(opts.lookuptable[0]) == 'red-yellow'):
-		cmap_array = np.array(( (np.ones(256)*255), np.linspace(0,255,256), np.zeros(256), np.ones(256)*255.0)).T
-	elif (str(opts.lookuptable[0]) == 'b_lb') or (str(opts.lookuptable[0]) == 'blue-lightblue'):
-		cmap_array = np.array(( np.zeros(256), np.linspace(0,255,256), (np.ones(256)*255), np.ones(256)*255.0)).T
-	else:
-		try:
-			cmap_array = eval('plt.cm.%s(np.arange(256))' % opts.lookuptable[0])
-		except:
-			print "Error: Lookup table '%s' is not recognized." % opts.lookuptable[0]
-			print "The lookup table can be red-yellow (r_y), blue-lightblue (b_lb) or any matplotlib colorschemes (https://matplotlib.org/examples/color/colormaps_reference.html)"
-			quit()
-		cmap_array *= 255
-	cmap_array[0] = [227,218,201,opts.alpha[0]] # set lowest threshold to bone
+	cmap_array = get_cmap_array(opts.lookuptable[0], float(opts.alpha[0]))
 
 	if opts.display:
 		if len(opts.display) % 3 != 0:
@@ -319,7 +389,7 @@ def run(opts):
 			if np.mean(scalar_data[scalar_data != 0]) == 1:
 				surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
 					scalars = scalar_data, 
-					name = volume,
+					name = os.path.basename(volume),
 					opacity = opts.opacity[0],
 					color = (227/255, 218/255, 201/255))
 			else:
@@ -327,7 +397,7 @@ def run(opts):
 					scalars = scalar_data, 
 					vmin = opts.thresholds[0],
 					vmax = opts.thresholds[1],
-					name = volume)
+					name = os.path.basename(volume))
 				cmap_array[0] = [227,218,201,0]
 				surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
@@ -343,10 +413,43 @@ def run(opts):
 
 			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
 				scalars = scalar_data, 
-				name = volume,
+				name = os.path.basename(volume),
 				opacity = opts.opacity[0],
 				color = (227/255, 218/255, 201/255))
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
+
+	if opts.thresholdimportvolume:
+		if len(opts.thresholdimportvolume) == 3:
+			vol_cmap_array = get_cmap_array(opts.lookuptable[3], 0)
+			vol_occupancy = opts.opacity[0]
+		elif len(opts.thresholdimportvolume) == 4:
+			vol_cmap_array = get_cmap_array(opts.thresholdimportvolume[3], 0)
+			vol_occupancy = opts.opacity[0]
+		elif len(opts.thresholdimportvolume) == 5:
+			vol_cmap_array = get_cmap_array(opts.thresholdimportvolume[3], 0)
+			vol_occupancy = float(opts.thresholdimportvolume[4])
+		else:
+			print "Error -ivt must have three or four inputs"
+			quit()
+		invol = nib.load(str(opts.thresholdimportvolume[0]))
+		data = check_byteorder(invol.get_data())
+		v, f, scalar_data = convert_voxel(data, affine = invol.get_affine())
+
+		if opts.surfacesmoothing:
+			adjacency = create_adjac_vertex(v,f)
+			v, f, scalar_data = vectorized_surface_smooth(v, f, adjacency,
+				number_of_iter = int(opts.surfacesmoothing[0]),
+				scalar = scalar_data,
+				mode = str(opts.smoothingtype[0]))
+
+		surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
+			scalars = scalar_data, 
+			vmin = float(opts.thresholdimportvolume[1]),
+			vmax = float(opts.thresholdimportvolume[2]),
+			opacity = vol_occupancy,
+			name = os.path.basename(str(opts.thresholdimportvolume[0])))
+		surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
+		surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
 	if opts.importfreesurfer:
 		for insurf in opts.importfreesurfer:
