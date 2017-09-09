@@ -53,6 +53,19 @@ def check_byteorder(np_array):
 		np_array = np_array.byteswap().newbyteorder()
 	return np_array
 
+def apply_affine_to_scalar_field(data, affine):
+	data = np.array(data)
+	size_x, size_y, size_z = data.shape
+	x,y,z = np.where(data!=55378008)
+	coord = np.column_stack((x,y))
+	coord = np.column_stack((coord,z))
+	coord_array = nib.affines.apply_affine(affine, coord)
+	xi = coord_array[:,0].reshape(size_x, size_y, size_z) * affine[0,0]
+	yi = coord_array[:,1].reshape(size_x, size_y, size_z) * affine[1,1]
+	zi = coord_array[:,2].reshape(size_x, size_y, size_z) * affine[2,2]
+	src = mlab.pipeline.scalar_field(xi, yi, zi, data)
+	return src
+
 def display_matplotlib_luts():
 	# Adapted from https://matplotlib.org/1.2.1/examples/pylab_examples/show_colormaps.html
 
@@ -93,9 +106,8 @@ def display_matplotlib_luts():
 	plt.show()
 
 
-def get_cmap_array(lut, alpha = 255, zero_lower = True, zero_upper = False, base_color = [227,218,201], c_reverse = False):
-	if len(base_color) == 3:
-		base_color.append(int(alpha))
+def get_cmap_array(lut, alpha = 255, zero_lower = True, zero_upper = False, base_color = [227,218,201,0], c_reverse = False):
+	base_color[3] = alpha
 	if lut.endswith('_r'):
 		c_reverse = lut.endswith('_r')
 		lut = lut[:-2]
@@ -153,6 +165,11 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 	# optional
 	ap.add_argument("-dv", "--displayvoxelmask",
 		help = "Display a volume as a surface. The mask and contrast must be entered as integers (check values with -oh).", 
+		nargs = '+',
+		type = int,
+		metavar = 'int')
+	ap.add_argument("-dvsf", "--displayvoxelscalarfield",
+		help = "Display a volume an x and y plane scalar field. The mask and contrast must be entered as integers (check values with -oh).", 
 		nargs = '+',
 		type = int,
 		metavar = 'int')
@@ -263,6 +280,16 @@ def run(opts):
 			print "Error: no surface or volume imports (use -iv or -ifs)."
 			sys.exit()
 
+	if opts.inputtmi:
+		_, image_array, masking_array, maskname_array, affine_array, vertex_array, face_array, surfname, _, tmi_history, columnids = read_tm_filetype(opts.inputtmi[0], verbose=False)
+		# get the positions of masked data in image_array
+		pointer = 0
+		position_array = [0]
+		for i in range(len(masking_array)):
+			pointer += len(masking_array[i][masking_array[i]==True])
+			position_array.append(pointer)
+		del pointer
+
 	# load tmi
 	if opts.history:
 		num_con = image_array[0].shape[1]
@@ -274,16 +301,6 @@ def run(opts):
 			num_con = num_con,
 			contrast_names = columnids)
 		sys.exit()
-
-	if opts.inputtmi:
-		_, image_array, masking_array, maskname_array, affine_array, vertex_array, face_array, surfname, _, tmi_history, columnids = read_tm_filetype(opts.inputtmi[0], verbose=False)
-		# get the positions of masked data in image_array
-		pointer = 0
-		position_array = [0]
-		for i in range(len(masking_array)):
-			pointer += len(masking_array[i][masking_array[i]==True])
-			position_array.append(pointer)
-		del pointer
 
 	# make custom look-up table
 	cmap_array = get_cmap_array(opts.lookuptable[0], float(opts.alpha[0]))
@@ -359,6 +376,45 @@ def run(opts):
 				name = maskname_array[c_mask])
 			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
+
+	if opts.displayvoxelscalarfield:
+		cmap_array[0] = [227,218,201,0]
+		if len(opts.displayvoxelscalarfield) % 2 != 0:
+			print "Error: There must be two inputs per voxel surface (mask, contrast)."
+			sys.exit()
+
+		for j in range(int(len(opts.displayvoxelscalarfield)/2)):
+			c_mask = opts.displayvoxelscalarfield[0 + int(j*2)]
+			c_contrast = opts.displayvoxelscalarfield[1 + int(j*2)]
+
+			start = position_array[c_mask]
+			end = position_array[c_mask+1]
+
+			mask = masking_array[c_mask]
+			scalar_data = np.zeros((mask.shape[0],mask.shape[1],mask.shape[2]))
+			scalar_data[mask] = image_array[0][start:end,c_contrast]
+
+			scalar_field = apply_affine_to_scalar_field(scalar_data, affine_array[c_mask])
+
+			plane = mlab.pipeline.image_plane_widget(scalar_field,
+				plane_orientation='x_axes',
+				vmin=opts.thresholds[0],
+				vmax=opts.thresholds[1],
+				transparent = True,
+				name = "X_%s" % maskname_array[c_mask],
+				slice_index=int(scalar_data.shape[0]/2))
+			plane.module_manager.scalar_lut_manager.lut.table = cmap_array
+			plane.ipw.reslice_interpolate = 'nearest_neighbour'
+			plane = mlab.pipeline.image_plane_widget(scalar_field,
+				plane_orientation='y_axes',
+				vmin=opts.thresholds[0],
+				vmax=opts.thresholds[1],
+				transparent = True,
+				name = "Y_%s" % maskname_array[c_mask],
+				slice_index=int(scalar_data.shape[1]/2))
+			plane.module_manager.scalar_lut_manager.lut.table = cmap_array
+			plane.ipw.reslice_interpolate = 'nearest_neighbour'
+			mlab.outline()
 
 	if opts.displaysurface:
 		for c_surf in opts.displaysurface:
@@ -457,10 +513,10 @@ def run(opts):
 		surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
 	if opts.importfreesurfer:
-		for insurf in opts.importfreesurfer:
+		for i, insurf in enumerate(opts.importfreesurfer):
 			v, f = convert_fs(insurf)
 			if opts.importfreesurfermgh:
-				mghvol = opts.importfreesurfermgh[int(np.argwhere(np.array(opts.importfreesurfer)==insurf))] # super hacky
+				mghvol = opts.importfreesurfermgh[i]
 				if len(opts.importfreesurfer) != len(opts.importfreesurfermgh):
 					print "The number of -fsmgh inputs must match the -ifs inputs."
 					sys.exit()
