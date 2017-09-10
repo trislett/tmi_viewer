@@ -25,6 +25,8 @@ import argparse as ap
 import nibabel as nib
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
+import matplotlib.image as mpimg
+from scipy import ndimage
 import warnings
 import matplotlib.cbook
 
@@ -134,6 +136,73 @@ def get_cmap_array(lut, alpha = 255, zero_lower = True, zero_upper = False, base
 		cmap_array[-1] = base_color
 	return cmap_array
 
+def correct_image(img_name, rotate = None, b_transparent = True):
+	img = mpimg.imread(img_name)
+	if b_transparent:
+		if img_name.endswith('.png'):
+			rows = img.shape[0]
+			columns = img.shape[1]
+			if img.shape[2] == 3:
+				img_flat = img.reshape([rows * columns, 3])
+			else:
+				img_flat = img.reshape([rows * columns, 4])
+				img_flat = img_flat[:,:3]
+			alpha = np.zeros([rows*columns, 1], dtype=np.uint8)
+			alpha.fill(1)
+			alpha[np.equal([0,0,0], img_flat).all(1)] = [0]
+			img_flat = np.column_stack([img_flat, alpha])
+			img = img_flat.reshape([rows, columns, 4])
+	if rotate is not None:
+		img = ndimage.rotate(img, float(rotate))
+	mpimg.imsave(img_name, img)
+
+def make_html(title, basename, lut, outname):
+	with open(outname, "wb") as o:
+		o.write("<!DOCTYPE HTML>\n")
+		o.write("<html lang = 'en'>\n")
+		o.write("<head>\n")
+		o.write("  <title>TMI Snapshots</title>\n")
+		o.write("  <meta charset = 'UTF-8' />\n")
+		o.write("</head>\n")
+		o.write("<body>\n")
+		o.write("  <h1>%s</h1>\n" % title)
+		o.write("   <ul>\n")
+		o.write("    <a href='%s_anterior.png'>\n" % basename)
+		o.write("    <img src = '%s_anterior.png' height='200' width='200'>\n" % basename)
+		o.write("    <h1 style='position:absolute; top:40px; left:80px;' > Anterior</h1>\n")
+		o.write("    </a>\n")
+		o.write("    <a href='%s_posterior.png'>\n" % basename)
+		o.write("    <img src = '%s_posterior.png' height='200' width='200'>\n" % basename)
+		o.write("    <h1 style='position:absolute; top:40px; left:280px;'> Posterior</h1>\n")
+		o.write("    </a>\n")
+		o.write("    <a href='%s_left.png'>\n" % basename)
+		o.write("    <img src = '%s_left.png' height='200' width='200'>\n" % basename)
+		o.write("    <h1 style='position:absolute; top:40px; left:500px;'> Left</h1>\n")
+		o.write("    </a>\n")
+		o.write("    <a href='%s_right.png'>\n" % basename)
+		o.write("    <img src = '%s_right.png' height='200' width='200'>\n" % basename)
+		o.write("    <h1 style='position:absolute; top:40px; left:700px;'> Right</h1>\n")
+		o.write("    </a>\n")
+		o.write("    <a href='%s_superior.png'>\n" % basename)
+		o.write("    <img src = '%s_superior.png' height='200' width='200'>\n" % basename)
+		o.write("    <h1 style='position:absolute; top:40px; left:900px;'> Superior</h1>\n")
+		o.write("    </a>\n")
+		o.write("    <a href='%s_inferior.png'>\n" % basename)
+		o.write("    <img src = '%s_inferior.png' height='200' width='200'>\n" % basename)
+		o.write("    <h1 style='position:absolute; top:40px; left:1110px;'> Inferior</h1>\n")
+		o.write("    </a>\n")
+		o.write("    <a href='%s_isometric.png'>\n" % basename)
+		o.write("    <img src = '%s_isometric.png' height='200' width='200'>\n" % basename)
+		o.write("    <h1 style='position:absolute; top:40px; left:1300px;'> Isometric</h1>\n")
+		o.write("    </a>\n")
+		o.write("    <a href='%s_colorbar.png'>\n" % lut)
+		o.write("    <img src = '%s_colorbar.png' height='200' width='40'>\n" % lut)
+		o.write("    </a>\n")
+		o.write("   </ul>\n")
+		o.write("</body>\n")
+		o.write("</html>\n")
+		o.close()
+
 DESCRIPTION = """
 Display surfaces and volumes from a tmi file.
 
@@ -221,6 +290,12 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 			Import a volume (nifti or minc) and apply a lower and upper threshold. e.g., -ivt mean_FA_skeleton_mask.nii.gz  0.2 0.8. 
 			Only one volume can be added. A lookup table can be specified as the forth argument (the default is the -lut option).
 		""", 
+		nargs = '*',
+		metavar = ['str|float|float|str'])
+	ap.add_argument("-ivsf", "--importvoxelscalarfield",
+		help = """
+			Import a volume display it as an x and y plane scalar field. e.g., -ivsf mean_FA_skeleton_mask.nii.gz  0.2 0.8
+			Only one volume can be added. A lookup table can be specified as the forth argument (the default is the -lut option).""", 
 		nargs = '*',
 		metavar = ['str|float|float|str'])
 	ap.add_argument("-ifs", "--importfreesurfer",
@@ -396,24 +471,24 @@ def run(opts):
 
 			scalar_field = apply_affine_to_scalar_field(scalar_data, affine_array[c_mask])
 
-			plane = mlab.pipeline.image_plane_widget(scalar_field,
+			surf = mlab.pipeline.image_plane_widget(scalar_field,
 				plane_orientation='x_axes',
 				vmin=opts.thresholds[0],
 				vmax=opts.thresholds[1],
 				transparent = True,
 				name = "X_%s" % maskname_array[c_mask],
 				slice_index=int(scalar_data.shape[0]/2))
-			plane.module_manager.scalar_lut_manager.lut.table = cmap_array
-			plane.ipw.reslice_interpolate = 'nearest_neighbour'
-			plane = mlab.pipeline.image_plane_widget(scalar_field,
+			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
+			surf.ipw.reslice_interpolate = 'nearest_neighbour'
+			surf = mlab.pipeline.image_plane_widget(scalar_field,
 				plane_orientation='y_axes',
 				vmin=opts.thresholds[0],
 				vmax=opts.thresholds[1],
 				transparent = True,
 				name = "Y_%s" % maskname_array[c_mask],
 				slice_index=int(scalar_data.shape[1]/2))
-			plane.module_manager.scalar_lut_manager.lut.table = cmap_array
-			plane.ipw.reslice_interpolate = 'nearest_neighbour'
+			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
+			surf.ipw.reslice_interpolate = 'nearest_neighbour'
 			mlab.outline()
 
 	if opts.displaysurface:
@@ -512,6 +587,48 @@ def run(opts):
 		surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
 		surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
+
+	if opts.importvoxelscalarfield:
+		if len(opts.importvoxelscalarfield) == 3:
+			vol_cmap_array = get_cmap_array(opts.lookuptable[3], 0)
+			vol_occupancy = opts.opacity[0]
+		elif len(opts.importvoxelscalarfield) == 4:
+			vol_cmap_array = get_cmap_array(opts.importvoxelscalarfield[3], 0)
+			vol_occupancy = opts.opacity[0]
+		elif len(opts.importvoxelscalarfield) == 5:
+			vol_cmap_array = get_cmap_array(opts.importvoxelscalarfield[3], 0)
+			vol_occupancy = float(opts.importvoxelscalarfield[4])
+		else:
+			print "Error -ivt must have three or four inputs"
+			sys.exit()
+		invol = nib.load(str(opts.importvoxelscalarfield[0]))
+		data = check_byteorder(invol.get_data())
+
+		scalar_field = apply_affine_to_scalar_field(data, invol.affine)
+
+		surf = mlab.pipeline.image_plane_widget(scalar_field,
+			plane_orientation='x_axes',
+			vmin = float(opts.importvoxelscalarfield[1]),
+			vmax = float(opts.importvoxelscalarfield[2]),
+			transparent = True,
+			opacity = vol_occupancy,
+			name = "X_%s" % os.path.basename(str(opts.importvoxelscalarfield[0])),
+			slice_index=int(data.shape[0]/2))
+		surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
+		surf.ipw.reslice_interpolate = 'nearest_neighbour'
+		surf = mlab.pipeline.image_plane_widget(scalar_field,
+			plane_orientation='y_axes',
+			vmin = float(opts.importvoxelscalarfield[1]),
+			vmax = float(opts.importvoxelscalarfield[2]),
+			transparent = True,
+			opacity = vol_occupancy,
+			name = "Y_%s" % os.path.basename(str(opts.importvoxelscalarfield[0])),
+			slice_index=int(data.shape[1]/2))
+		surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
+		surf.ipw.reslice_interpolate = 'nearest_neighbour'
+		mlab.outline()
+
+
 	if opts.importfreesurfer:
 		for i, insurf in enumerate(opts.importfreesurfer):
 			v, f = convert_fs(insurf)
@@ -558,32 +675,40 @@ def run(opts):
 		surf.scene.background = (0,0,0)
 
 		surf.scene.x_minus_view()
-		orientation = 'left'
-		mlab.savefig('%s_%s.%s' % (opts.savesnapshots[0], orientation, opts.savetype[0]), size = (1600,1400))
+		savename = '%s_left.%s'  % (opts.savesnapshots[0], opts.savetype[0])
+		mlab.savefig(savename, size = (1600,1600))
+		correct_image(savename)
 		surf.scene.x_plus_view()
-		orientation = 'right'
-		mlab.savefig('%s_%s.%s' % (opts.savesnapshots[0], orientation, opts.savetype[0]), size = (1600,1400))
+		savename = '%s_right.%s'  % (opts.savesnapshots[0], opts.savetype[0])
+		mlab.savefig(savename, size = (1600,1600))
+		correct_image(savename)
 
 		surf.scene.y_minus_view()
-		orientation = 'posterior'
-		mlab.savefig('%s_%s.%s' % (opts.savesnapshots[0], orientation, opts.savetype[0]), size = (1600,1400))
+		savename = '%s_posterior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
+		mlab.savefig(savename, size = (1600,1600))
+		correct_image(savename, rotate = 270, b_transparent = True)
 		surf.scene.y_plus_view()
-		orientation = 'anterior'
-		mlab.savefig('%s_%s.%s' % (opts.savesnapshots[0], orientation, opts.savetype[0]), size = (1600,1400))
+		savename = '%s_anterior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
+		mlab.savefig(savename, size = (1600,1600))
+		correct_image(savename, rotate = 90, b_transparent = True)
 
 		surf.scene.z_minus_view()
-		orientation = 'inferior'
-		mlab.savefig('%s_%s.%s' % (opts.savesnapshots[0], orientation, opts.savetype[0]), size = (1600,1400))
+		savename = '%s_inferior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
+		mlab.savefig(savename, size = (1600,1600))
+		correct_image(savename)
 		surf.scene.z_plus_view()
-		orientation = 'superior'
-		mlab.savefig('%s_%s.%s' % (opts.savesnapshots[0], orientation, opts.savetype[0]), size = (1600,1400))
+		savename = '%s_superior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
+		mlab.savefig(savename, size = (1600,1600))
+		correct_image(savename)
 
 		surf.scene.isometric_view()
-		orientation = 'isometric'
-		mlab.savefig('%s_%s.%s' % (opts.savesnapshots[0], orientation, opts.savetype[0]), size = (1600,1400))
+		savename = '%s_isometric.%s'  % (opts.savesnapshots[0], opts.savetype[0])
+		mlab.savefig(savename, size = (1600,1600))
+		correct_image(savename)
 
 		rl_cmap = colors.ListedColormap(cmap_array[:,0:3]/255)
 		write_colorbar(opts.thresholds, rl_cmap, opts.lookuptable[0])
+		make_html(opts.savesnapshots[0], opts.savesnapshots[0], opts.lookuptable[0], "%s.html" % opts.savesnapshots[0])
 
 	surf.scene.background = (0,0,0)
 	mlab.show()
