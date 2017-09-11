@@ -27,7 +27,6 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import matplotlib.image as mpimg
 from scipy import ndimage
-import warnings
 import matplotlib.cbook
 
 from tfce_mediation.tm_io import read_tm_filetype
@@ -62,11 +61,39 @@ def apply_affine_to_scalar_field(data, affine):
 	coord = np.column_stack((x,y))
 	coord = np.column_stack((coord,z))
 	coord_array = nib.affines.apply_affine(affine, coord)
-	xi = coord_array[:,0].reshape(size_x, size_y, size_z) * affine[0,0]
-	yi = coord_array[:,1].reshape(size_x, size_y, size_z) * affine[1,1]
-	zi = coord_array[:,2].reshape(size_x, size_y, size_z) * affine[2,2]
+	xi = coord_array[:,0].reshape(size_x, size_y, size_z) * np.sign(affine[0,0])
+	yi = coord_array[:,1].reshape(size_x, size_y, size_z) * np.sign(affine[1,1])
+	zi = coord_array[:,2].reshape(size_x, size_y, size_z) * np.sign(affine[2,2])
 	src = mlab.pipeline.scalar_field(xi, yi, zi, data)
 	return src
+
+def linear_cm(c0,c1,c2 = None):
+#	c0 = [237,248,177]
+#	c1 = [127,205,187]
+#	c2 = [44,127,184]
+	c_map = np.zeros((256,3))
+	if c2 is not None:
+		for i in range(3):
+			c_map[0:128,i] = np.linspace(c0[i],c1[i],128)
+			c_map[127:256,i] = np.linspace(c1[i],c2[i],129)
+	else:
+		for i in range(3):
+			c_map[:,i] = np.linspace(c0[i],c1[i],256)
+	return c_map
+
+def log_cm(c0,c1,c2 = None):
+#	c0 = [237,248,177]
+#	c1 = [127,205,187]
+#	c2 = [44,127,184]
+	c_map = np.zeros((256,3))
+	if c2 is not None:
+		for i in range(3):
+			c_map[0:128,i] = np.geomspace(c0[i] + 1,c1[i] + 1,128)-1
+			c_map[127:256,i] = np.geomspace(c1[i] + 1,c2[i] + 1,129)-1
+	else:
+		for i in range(3):
+			c_map[:,i] = np.geomspace(c0[i] + 1,c1[i] + 1,256)-1
+	return c_map
 
 def display_matplotlib_luts():
 	# Adapted from https://matplotlib.org/1.2.1/examples/pylab_examples/show_colormaps.html
@@ -82,24 +109,49 @@ def display_matplotlib_luts():
 	a = np.vstack((a,a))
 
 	maps = sorted(m for m in plt.cm.datad if not m.endswith("_r"))
-	maps.append(u'red-yellow')
+	maps.append(u'red-yellow') # custom maps 
 	maps.append(u'blue-lightblue')
 	maps.append(u'green-lightgreen')
+	maps.append(u'tm-breeze')
+	maps.append(u'tm-summer')
+	maps.append(u'tm-storm')
+	maps.append(u'tm-flow')
+	maps.append(u'tm-logBluGry')
+	maps.append(u'tm-logRedYel')
 	nmaps = len(maps) + 1
 
-	fig = plt.figure(figsize=(8,10))
+	fig = plt.figure(figsize=(8,12))
 	fig.subplots_adjust(top=0.99, bottom=0.01, left=0.2, right=0.99)
 	for i,m in enumerate(maps):
 		ax = plt.subplot(nmaps, 1, i+1)
 		plt.axis("off")
 		if m == 'red-yellow':
-			cmap_array = np.array(( (np.ones(256)*255), np.linspace(0,255,256), np.zeros(256) )).T / 255
+			cmap_array = linear_cm([255,0,0],[255,255,0]) / 255
 			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
 		elif m == 'blue-lightblue':
-			cmap_array = np.array(( np.zeros(256), np.linspace(0,255,256), (np.ones(256)*255) )).T / 255
+			cmap_array = linear_cm([0,0,255],[0,255,255]) / 255
+#			cmap_array = np.array(( np.zeros(256), np.linspace(0,255,256), (np.ones(256)*255) )).T / 255
 			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
 		elif m == 'green-lightgreen':
-			cmap_array = np.array(( np.zeros(256), np.linspace(128,255,256), np.zeros(256) )).T / 255
+			cmap_array = linear_cm([0,128,0],[0,255,0]) / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'tm-breeze':
+			cmap_array = linear_cm([199,233,180],[65,182,196],[37,52,148]) / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'tm-summer':
+			cmap_array = linear_cm([255,255,51],[255,128,0],[204,0,0]) / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'tm-storm':
+			cmap_array = linear_cm([0,153,0],[255,255,0],[204,0,0]) / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'tm-flow':
+			cmap_array = log_cm([51,51,255],[255,0,0],[255,255,255]) / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'tm-logBluGry':
+			cmap_array = log_cm([0,0,51],[0,0,255],[255,255,255]) / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'tm-logRedYel':
+			cmap_array = log_cm([102,0,0],[200,0,0],[255,255,0]) / 255
 			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
 		else:
 			plt.imshow(a, aspect='auto', cmap=plt.get_cmap(m), origin='lower')
@@ -115,11 +167,23 @@ def get_cmap_array(lut, alpha = 255, zero_lower = True, zero_upper = False, base
 		lut = lut[:-2]
 	# make custom look-up table
 	if (str(lut) == 'r-y') or (str(lut) == 'red-yellow'):
-		cmap_array = np.array(( (np.ones(256)*255), np.linspace(0,255,256), np.zeros(256), np.ones(256)*255.0)).T
+		cmap_array = np.column_stack((linear_cm([255,0,0],[255,255,0]),np.ones(256)*255))
 	elif (str(lut) == 'b-lb') or (str(lut) == 'blue-lightblue'):
-		cmap_array = np.array(( np.zeros(256), np.linspace(0,255,256), (np.ones(256)*255), np.ones(256)*255.0)).T
+		cmap_array =  np.column_stack((linear_cm([0,0,255],[0,255,255]),np.ones(256)*255))
 	elif (str(lut) == 'g-lg') or (str(lut) == 'green-lightgreen'):
-		cmap_array = np.array(( np.zeros(256), np.linspace(0,255,256), (np.zeros(256)*255), np.ones(256)*255.0)).T
+		cmap_array =  np.column_stack((linear_cm([0,128,0],[0,255,0]),np.ones(256)*255))
+	elif str(lut) == 'tm-breeze':
+		cmap_array =  np.column_stack((linear_cm([199,233,180],[65,182,196],[37,52,148]),np.ones(256)*255))
+	elif str(lut) == 'tm-summer':
+		cmap_array =  np.column_stack((linear_cm([255,255,51],[255,128,0],[204,0,0]),np.ones(256)*255))
+	elif str(lut) == 'tm-storm':
+		cmap_array =  np.column_stack((linear_cm([0,153,0],[255,255,0],[204,0,0]),np.ones(256)*255))
+	elif str(lut) == 'tm-flow':
+		cmap_array =  np.column_stack((log_cm([51,51,255],[255,0,0],[255,255,255]),np.ones(256)*255))
+	elif str(lut) == 'tm-logBluGry':
+		cmap_array =  np.column_stack((log_cm([0,0,51],[0,0,255],[255,255,255]),np.ones(256)*255))
+	elif str(lut) == 'tm-logRedYel':
+		cmap_array =  np.column_stack((log_cm([102,0,0],[200,0,0],[255,255,0]),np.ones(256)*255))
 	else:
 		try:
 			cmap_array = eval('plt.cm.%s(np.arange(256))' % lut)
@@ -565,7 +629,7 @@ def run(opts):
 			vol_cmap_array = get_cmap_array(opts.thresholdimportvolume[3], 0)
 			vol_occupancy = float(opts.thresholdimportvolume[4])
 		else:
-			print "Error -ivt must have three or four inputs"
+			print "Error -ivt must have three, four or five inputs"
 			sys.exit()
 		invol = nib.load(str(opts.thresholdimportvolume[0]))
 		data = check_byteorder(invol.get_data())
@@ -599,7 +663,7 @@ def run(opts):
 			vol_cmap_array = get_cmap_array(opts.importvoxelscalarfield[3], 0)
 			vol_occupancy = float(opts.importvoxelscalarfield[4])
 		else:
-			print "Error -ivt must have three or four inputs"
+			print "Error -ivsf must have three, four or five inputs"
 			sys.exit()
 		invol = nib.load(str(opts.importvoxelscalarfield[0]))
 		data = check_byteorder(invol.get_data())
@@ -708,7 +772,10 @@ def run(opts):
 
 		rl_cmap = colors.ListedColormap(cmap_array[:,0:3]/255)
 		write_colorbar(opts.thresholds, rl_cmap, opts.lookuptable[0])
-		make_html(opts.savesnapshots[0], opts.savesnapshots[0], opts.lookuptable[0], "%s.html" % opts.savesnapshots[0])
+		if opts.inputtmi:
+			make_html(opts.inputtmi[0], opts.savesnapshots[0], opts.lookuptable[0], "%s.html" % opts.savesnapshots[0])
+		else:
+			make_html(opts.savesnapshots[0], opts.savesnapshots[0], opts.lookuptable[0], "%s.html" % opts.savesnapshots[0])
 
 	surf.scene.background = (0,0,0)
 	mlab.show()
