@@ -68,9 +68,6 @@ def apply_affine_to_scalar_field(data, affine):
 	return src
 
 def linear_cm(c0,c1,c2 = None):
-#	c0 = [237,248,177]
-#	c1 = [127,205,187]
-#	c2 = [44,127,184]
 	c_map = np.zeros((256,3))
 	if c2 is not None:
 		for i in range(3):
@@ -82,17 +79,14 @@ def linear_cm(c0,c1,c2 = None):
 	return c_map
 
 def log_cm(c0,c1,c2 = None):
-#	c0 = [237,248,177]
-#	c1 = [127,205,187]
-#	c2 = [44,127,184]
 	c_map = np.zeros((256,3))
 	if c2 is not None:
 		for i in range(3):
-			c_map[0:128,i] = np.geomspace(c0[i] + 1,c1[i] + 1,128)-1
-			c_map[127:256,i] = np.geomspace(c1[i] + 1,c2[i] + 1,129)-1
+			c_map[0:128,i] = np.geomspace(c0[i] + 1,c1[i] + 1,128) - 1
+			c_map[127:256,i] = np.geomspace(c1[i] + 1,c2[i] + 1,129) - 1
 	else:
 		for i in range(3):
-			c_map[:,i] = np.geomspace(c0[i] + 1,c1[i] + 1,256)-1
+			c_map[:,i] = np.geomspace(c0[i] + 1,c1[i] + 1,256) - 1
 	return c_map
 
 def display_matplotlib_luts():
@@ -130,7 +124,6 @@ def display_matplotlib_luts():
 			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
 		elif m == 'blue-lightblue':
 			cmap_array = linear_cm([0,0,255],[0,255,255]) / 255
-#			cmap_array = np.array(( np.zeros(256), np.linspace(0,255,256), (np.ones(256)*255) )).T / 255
 			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
 		elif m == 'green-lightgreen':
 			cmap_array = linear_cm([0,128,0],[0,255,0]) / 255
@@ -358,10 +351,14 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		metavar = ['str|float|float|str'])
 	ap.add_argument("-ivsf", "--importvoxelscalarfield",
 		help = """
-			Import a volume display it as an x and y plane scalar field. e.g., -ivsf mean_FA_skeleton_mask.nii.gz  0.2 0.8
+			Import a volume display it as an default [x, y] plane scalar field. e.g., -ivsf mean_FA_skeleton_mask.nii.gz  0.2 0.8
 			Only one volume can be added. A lookup table can be specified as the forth argument (the default is the -lut option).""", 
 		nargs = '*',
 		metavar = ['str|float|float|str'])
+	ap.add_argument("-sfa", "--scalarfieldaxis",
+		help = "Select axis/axes for scalar field. Only  {X, Y, Z} are valid arguements",
+		nargs = '+',
+		metavar = 'axis')
 	ap.add_argument("-ifs", "--importfreesurfer",
 		help = """
 			Import a freesurfer surface (use 'tm_multimodal create-tmi' to add other surface types). 
@@ -535,24 +532,28 @@ def run(opts):
 
 			scalar_field = apply_affine_to_scalar_field(scalar_data, affine_array[c_mask])
 
-			surf = mlab.pipeline.image_plane_widget(scalar_field,
-				plane_orientation='x_axes',
-				vmin=opts.thresholds[0],
-				vmax=opts.thresholds[1],
-				transparent = True,
-				name = "X_%s" % maskname_array[c_mask],
-				slice_index=int(scalar_data.shape[0]/2))
-			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
-			surf.ipw.reslice_interpolate = 'nearest_neighbour'
-			surf = mlab.pipeline.image_plane_widget(scalar_field,
-				plane_orientation='y_axes',
-				vmin=opts.thresholds[0],
-				vmax=opts.thresholds[1],
-				transparent = True,
-				name = "Y_%s" % maskname_array[c_mask],
-				slice_index=int(scalar_data.shape[1]/2))
-			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
-			surf.ipw.reslice_interpolate = 'nearest_neighbour'
+
+			if opts.scalarfieldaxis:
+				axis_array = opts.scalarfieldaxis
+			else:
+				axis_array = ['X', 'Y']
+
+			for axis in axis_array:
+				if axis == 'X':
+					orien = 'x_axes'
+				if axis == 'Y':
+					orien = 'y_axes'
+				if axis == 'Z':
+					orien = 'z_axes'
+				surf = mlab.pipeline.image_plane_widget(scalar_field,
+					plane_orientation='%s' % orien,
+					vmin = float(opts.thresholds[0]),
+					vmax = float(opts.thresholds[1]),
+					opacity = opts.opacity[0],
+					name = "%s_%s" % (axis, maskname_array[c_mask]),
+					slice_index=int(scalar_data.shape[0]/2))
+				surf.module_manager.scalar_lut_manager.lut.table = cmap_array
+				surf.ipw.reslice_interpolate = 'nearest_neighbour'
 			mlab.outline()
 
 	if opts.displaysurface:
@@ -670,26 +671,27 @@ def run(opts):
 
 		scalar_field = apply_affine_to_scalar_field(data, invol.affine)
 
-		surf = mlab.pipeline.image_plane_widget(scalar_field,
-			plane_orientation='x_axes',
-			vmin = float(opts.importvoxelscalarfield[1]),
-			vmax = float(opts.importvoxelscalarfield[2]),
-			transparent = True,
-			opacity = vol_occupancy,
-			name = "X_%s" % os.path.basename(str(opts.importvoxelscalarfield[0])),
-			slice_index=int(data.shape[0]/2))
-		surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
-		surf.ipw.reslice_interpolate = 'nearest_neighbour'
-		surf = mlab.pipeline.image_plane_widget(scalar_field,
-			plane_orientation='y_axes',
-			vmin = float(opts.importvoxelscalarfield[1]),
-			vmax = float(opts.importvoxelscalarfield[2]),
-			transparent = True,
-			opacity = vol_occupancy,
-			name = "Y_%s" % os.path.basename(str(opts.importvoxelscalarfield[0])),
-			slice_index=int(data.shape[1]/2))
-		surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
-		surf.ipw.reslice_interpolate = 'nearest_neighbour'
+		if opts.scalarfieldaxis:
+			axis_array = opts.scalarfieldaxis
+		else:
+			axis_array = ['X', 'Y']
+
+		for axis in axis_array:
+			if axis == 'X':
+				orien = 'x_axes'
+			if axis == 'Y':
+				orien = 'y_axes'
+			if axis == 'Z':
+				orien = 'z_axes'
+			surf = mlab.pipeline.image_plane_widget(scalar_field,
+				plane_orientation='%s' % orien,
+				vmin = float(opts.importvoxelscalarfield[1]),
+				vmax = float(opts.importvoxelscalarfield[2]),
+				opacity = vol_occupancy,
+				name = "%s_%s" % (axis, os.path.basename(str(opts.importvoxelscalarfield[0]))),
+				slice_index=int(data.shape[0]/2))
+			surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
+			surf.ipw.reslice_interpolate = 'nearest_neighbour'
 		mlab.outline()
 
 
