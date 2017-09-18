@@ -1,0 +1,636 @@
+#!/usr/bin/env python
+
+#    
+#    Copyright (C) 2017  Tristram Lett
+
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+from __future__ import division
+import os
+import sys
+import numpy as np
+import warnings
+import argparse as ap
+import nibabel as nib
+import matplotlib.pyplot as plt
+import matplotlib.colors as colors
+import matplotlib.image as mpimg
+from scipy import ndimage
+import matplotlib.cbook
+from skimage import filters
+
+from tfce_mediation.tm_io import read_tm_filetype
+from tfce_mediation.tm_func import print_tmi_history
+from tfce_mediation.pyfunc import convert_voxel, convert_fs, write_colorbar, create_adjac_vertex, vectorized_surface_smooth
+
+# hopefully safer loading of mayavi
+if 'QT_API' not in os.environ:
+	os.environ['QT_API'] = 'pyqt'
+try:
+	from mayavi import mlab
+except:
+	print "Trying pyside"
+	os.environ['QT_API'] = 'pyside'
+	from mayavi import mlab
+
+def check_byteorder(np_array):
+	if sys.byteorder == 'little':
+		sys_bo = '<'
+	elif sys.byteorder == 'big':
+		sys_bo = '>'
+	else:
+		pass
+	if np_array.dtype.byteorder != sys_bo:
+		np_array = np_array.byteswap().newbyteorder()
+	return np_array
+
+def apply_affine_to_scalar_field(data, affine):
+	data = np.array(data)
+	size_x, size_y, size_z = data.shape
+	x,y,z = np.where(data!=55378008)
+	coord = np.column_stack((x,y))
+	coord = np.column_stack((coord,z))
+	coord_array = nib.affines.apply_affine(affine, coord)
+	xi = coord_array[:,0].reshape(size_x, size_y, size_z) * np.sign(affine[0,0])
+	yi = coord_array[:,1].reshape(size_x, size_y, size_z) * np.sign(affine[1,1])
+	zi = coord_array[:,2].reshape(size_x, size_y, size_z) * np.sign(affine[2,2])
+	src = mlab.pipeline.scalar_field(xi, yi, zi, data)
+	return src
+
+def nonempty_coordinate_range(data, affine):
+	nonempty = np.argwhere(data!=0)
+	nonempty_native = nib.affines.apply_affine(affine, nonempty)
+	x_minmax = np.array((nonempty_native[:,0].min(), nonempty_native[:,0].max()))
+	y_minmax = np.array((nonempty_native[:,1].min(), nonempty_native[:,1].max()))
+	z_minmax = np.array((nonempty_native[:,2].min(), nonempty_native[:,2].max()))
+	return (x_minmax,y_minmax,z_minmax)
+
+def linear_cm(c0,c1,c2 = None):
+	c_map = np.zeros((256,3))
+	if c2 is not None:
+		for i in range(3):
+			c_map[0:128,i] = np.linspace(c0[i],c1[i],128)
+			c_map[127:256,i] = np.linspace(c1[i],c2[i],129)
+	else:
+		for i in range(3):
+			c_map[:,i] = np.linspace(c0[i],c1[i],256)
+	return c_map
+
+def log_cm(c0,c1,c2 = None):
+	c_map = np.zeros((256,3))
+	if c2 is not None:
+		for i in range(3):
+			c_map[0:128,i] = np.geomspace(c0[i] + 1,c1[i] + 1,128)-1
+			c_map[127:256,i] = np.geomspace(c1[i] + 1,c2[i] + 1,129)-1
+	else:
+		for i in range(3):
+			c_map[:,i] = np.geomspace(c0[i] + 1,c1[i] + 1,256)-1
+	return c_map
+
+def display_matplotlib_luts():
+	# Adapted from https://matplotlib.org/1.2.1/examples/pylab_examples/show_colormaps.html
+
+	# This example comes from the Cookbook on www.scipy.org. According to the
+	# history, Andrew Straw did the conversion from an old page, but it is
+	# unclear who the original author is.
+
+	plt.switch_backend('Qt4Agg')
+	warnings.filterwarnings("ignore",category=matplotlib.cbook.mplDeprecation)
+
+	a = np.linspace(0, 1, 256).reshape(1,-1)
+	a = np.vstack((a,a))
+
+	maps = sorted(m for m in plt.cm.datad if not m.endswith("_r"))
+	maps.append(u'red-yellow') # custom maps 
+	maps.append(u'blue-lightblue')
+	maps.append(u'green-lightgreen')
+	maps.append(u'tm-breeze')
+	maps.append(u'tm-summer')
+	maps.append(u'tm-storm')
+	maps.append(u'tm-flow')
+	maps.append(u'tm-logBluGry')
+	maps.append(u'tm-logRedYel')
+	nmaps = len(maps) + 1
+
+	fig = plt.figure(figsize=(8,12))
+	fig.subplots_adjust(top=0.99, bottom=0.01, left=0.2, right=0.99)
+	for i,m in enumerate(maps):
+		ax = plt.subplot(nmaps, 1, i+1)
+		plt.axis("off")
+		if m == 'red-yellow':
+			cmap_array = linear_cm([255,0,0],[255,255,0]) / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'blue-lightblue':
+			cmap_array = linear_cm([0,0,255],[0,255,255]) / 255
+#			cmap_array = np.array(( np.zeros(256), np.linspace(0,255,256), (np.ones(256)*255) )).T / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'green-lightgreen':
+			cmap_array = linear_cm([0,128,0],[0,255,0]) / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'tm-breeze':
+			cmap_array = linear_cm([199,233,180],[65,182,196],[37,52,148]) / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'tm-summer':
+			cmap_array = linear_cm([255,255,51],[255,128,0],[204,0,0]) / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'tm-storm':
+			cmap_array = linear_cm([0,153,0],[255,255,0],[204,0,0]) / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'tm-flow':
+			cmap_array = log_cm([51,51,255],[255,0,0],[255,255,255]) / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'tm-logBluGry':
+			cmap_array = log_cm([0,0,51],[0,0,255],[255,255,255]) / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'tm-logRedYel':
+			cmap_array = log_cm([102,0,0],[200,0,0],[255,255,0]) / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		else:
+			plt.imshow(a, aspect='auto', cmap=plt.get_cmap(m), origin='lower')
+		pos = list(ax.get_position().bounds)
+		fig.text(pos[0] - 0.01, pos[1], m, fontsize=10, horizontalalignment='right')
+	plt.show()
+
+
+def get_cmap_array(lut, alpha = 255, zero_lower = True, zero_upper = False, base_color = [227,218,201,0], c_reverse = False):
+	base_color[3] = alpha
+	if lut.endswith('_r'):
+		c_reverse = lut.endswith('_r')
+		lut = lut[:-2]
+	# make custom look-up table
+	if (str(lut) == 'r-y') or (str(lut) == 'red-yellow'):
+		cmap_array = np.column_stack((linear_cm([255,0,0],[255,255,0]),np.ones(256)*255))
+	elif (str(lut) == 'b-lb') or (str(lut) == 'blue-lightblue'):
+		cmap_array =  np.column_stack((linear_cm([0,0,255],[0,255,255]),np.ones(256)*255))
+	elif (str(lut) == 'g-lg') or (str(lut) == 'green-lightgreen'):
+		cmap_array =  np.column_stack((linear_cm([0,128,0],[0,255,0]),np.ones(256)*255))
+	elif str(lut) == 'tm-breeze':
+		cmap_array =  np.column_stack((linear_cm([199,233,180],[65,182,196],[37,52,148]),np.ones(256)*255))
+	elif str(lut) == 'tm-summer':
+		cmap_array =  np.column_stack((linear_cm([255,255,51],[255,128,0],[204,0,0]),np.ones(256)*255))
+	elif str(lut) == 'tm-storm':
+		cmap_array =  np.column_stack((linear_cm([0,153,0],[255,255,0],[204,0,0]),np.ones(256)*255))
+	elif str(lut) == 'tm-flow':
+		cmap_array =  np.column_stack((log_cm([51,51,255],[255,0,0],[255,255,255]),np.ones(256)*255))
+	elif str(lut) == 'tm-logBluGry':
+		cmap_array =  np.column_stack((log_cm([0,0,51],[0,0,255],[255,255,255]),np.ones(256)*255))
+	elif str(lut) == 'tm-logRedYel':
+		cmap_array =  np.column_stack((log_cm([102,0,0],[200,0,0],[255,255,0]),np.ones(256)*255))
+	elif str(lut) == 'tm-white':
+		cmap_array =  np.column_stack((linear_cm([255,255,255],[255,255,255]),np.ones(256)*255))
+	else:
+		try:
+			cmap_array = eval('plt.cm.%s(np.arange(256))' % lut)
+		except:
+			print "Error: Lookup table '%s' is not recognized." % lut
+			print "The lookup table can be red-yellow (r_y), blue-lightblue (b_lb) or any matplotlib colorschemes (https://matplotlib.org/examples/color/colormaps_reference.html)"
+			sys.exit()
+		cmap_array *= 255
+	if c_reverse:
+		cmap_array = cmap_array[::-1]
+	if zero_lower:
+		cmap_array[0] = base_color
+	if zero_upper:
+		cmap_array[-1] = base_color
+	return cmap_array
+
+def correct_image(img_name, rotate = None, b_transparent = True):
+	img = mpimg.imread(img_name)
+	if b_transparent:
+		if img_name.endswith('.png'):
+			rows = img.shape[0]
+			columns = img.shape[1]
+			if img.shape[2] == 3:
+				img_flat = img.reshape([rows * columns, 3])
+			else:
+				img_flat = img.reshape([rows * columns, 4])
+				img_flat = img_flat[:,:3]
+			alpha = np.zeros([rows*columns, 1], dtype=np.uint8)
+			alpha.fill(1)
+			alpha[np.equal([0,0,0], img_flat).all(1)] = [0]
+			img_flat = np.column_stack([img_flat, alpha])
+			img = img_flat.reshape([rows, columns, 4])
+	if rotate is not None:
+		img = ndimage.rotate(img, float(rotate))
+	mpimg.imsave(img_name, img)
+
+def concate_images(basename, num, clean=False):
+	for i in range(num):
+		if i == 0:
+			outpng = mpimg.imread("%s_0.png" % basename)[50:350,50:350,:]
+		else:
+			tempng = mpimg.imread("%s_%d.png" % (basename, i))[50:350,50:350,:]
+			outpng = np.concatenate((outpng,tempng),1)
+		if i == (num-1):
+			mpimg.imsave('%ss.png' % basename, outpng)
+	if clean:
+		for i in range(num):
+			os.remove("%s_%d.png" % (basename, i))
+
+def draw_outline(img_png, mask_png, outline_color = [1,0,0,1]):
+	from scipy.ndimage.morphology import binary_erosion
+	img = mpimg.imread(img_png)
+	mask = mpimg.imread(mask_png)
+	#check mask
+	mask[mask[:,:,3] != 1] = [0,0,0,0]
+	mask[mask[:,:,3] == 1] = [1,1,1,1]
+	mask[mask[:,:,0] == 1] = [1,1,1,1]
+	index = (mask[:,:,0] == 1)
+	ones_arr = index *1
+	m = ones_arr - binary_erosion(ones_arr)
+	index = (m[:,:] == 1)
+	img[index] = outline_color
+	os.remove(mask_png)
+	mpimg.imsave(img_png, img)
+
+def autothreshold(data, threshold_type = 'otsu', z = 2.3264):
+	if threshold_type.endswith('_p'):
+		data = data[data>0]
+	else:
+		data = data[data!=0]
+	if (threshold_type == 'otsu') or (threshold_type == 'otsu_p'):
+		lthres = filters.threshold_otsu(data)
+		uthres = data[data>lthres].mean() + (z*data[data>lthres].std())
+		# Otsu N (1979) A threshold selection method from gray-level histograms. IEEE Trans. Sys., Man., Cyber. 9: 62-66.
+	elif (threshold_type == 'li')  or (threshold_type == 'li_p'):
+		lthres = filters.threshold_li(data)
+		uthres = data[data>lthres].mean() + (z*data[data>lthres].std())
+		# Li C.H. and Lee C.K. (1993) Minimum Cross Entropy Thresholding Pattern Recognition, 26(4): 617-625
+	elif (threshold_type == 'yen') or (threshold_type == 'yen_p'):
+		lthres = filters.threshold_yen(data)
+		uthres = data[data>lthres].mean() + (z*data[data>lthres].std())
+		# Yen J.C., Chang F.J., and Chang S. (1995) A New Criterion for Automatic Multilevel Thresholding IEEE Trans. on Image Processing, 4(3): 370-378.
+	else:
+		lthres = data.mean() - (z*data.std())
+		uthres = data.mean() + (z*data.std())
+	return lthres, uthres
+
+def make_slice_html(outname, coordinates, iv1, iv2):
+	if not os.path.exists(".%s" % outname):
+		os.mkdir(".%s" % outname)
+	os.system("mv ?_Slices.png .%s/" % outname)
+	os.system("mv ?_colorbar.png .%s/" % outname)
+	with open(outname, "wb") as o:
+		o.write("<!DOCTYPE HTML>\n")
+		o.write("<html lang = 'en'>\n")
+		o.write("<head>\n")
+		o.write("  <title>TMI Snapshots</title>\n")
+		o.write("  <meta charset = 'UTF-8' />\n")
+		o.write("  <style>\n")
+		o.write("      p {\n")
+		o.write("        font-size: 1vw;\n")
+		o.write("        padding: 5px;\n")
+		o.write("      }\n")
+		o.write("      ul {\n")
+		o.write("        white-space: nowrap;\n")
+		o.write("      }\n")
+		o.write("      ul, li {\n")
+		o.write("        list-style: none;\n")
+		o.write("        display: inline;\n")
+		o.write("      }\n")
+		o.write("  </style>\n")
+		o.write("</head>\n")
+		o.write("<body>\n")
+		o.write("  <h1>X Axis </h1>\n")
+		o.write("    <p><span> X = %s </span>" % ', X = '.join([ '%.1f' % elem for elem in coordinates[:,0] ]))
+		o.write("    </p>")
+		o.write("    <a href='.%s/X_Slices.png'>\n" % outname)
+		o.write("    <img src = '.%s/X_Slices.png' width='100%%'>\n" % outname)
+		o.write("    </a>\n")
+		o.write("  <h1> Y Axis </h1>\n")
+		o.write("    <p><centre> Y = %s</centre>" % ', Y = '.join([ '%.1f' % elem for elem in coordinates[:,1] ]))
+		o.write("    </p>")
+		o.write("    <a href='.%s/Y_Slices.png'>\n" % outname)
+		o.write("    <img src = '.%s/Y_Slices.png' width='100%%'>\n" % outname)
+		o.write("    </a>\n")
+		o.write("  <h1>Z Axis </h1>\n")
+		o.write("    <p>Z = %s " % ', Z = '.join([ '%.1f' % elem for elem in coordinates[:,2] ]))
+		o.write("    </p>")
+		o.write("    <a href='.%s/Z_Slices.png'>\n" % outname)
+		o.write("    <img src = '.%s/Z_Slices.png' width='100%%'>\n" % outname)
+		o.write("    </a>\n")
+		o.write("    <h1> Color Bar(s) </h1>\n")
+		o.write("    <ul>\n")
+		o.write("        <a href='.%s/0_colorbar.png'>\n" % outname)
+		o.write("        <li><img src='.%s/0_colorbar.png' width='auto' height='200'></li>\n" % outname)
+		o.write("        </a>\n")
+		if iv1 is not None:
+			o.write("        <a href='.%s/1_colorbar.png'>\n" % outname)
+			o.write("        <li><img src='.%s/1_colorbar.png' width='auto' height='200'></li>\n" % outname)
+			o.write("        </a>\n")
+		if iv2 is not None:
+			o.write("        <a href='.%s/2_colorbar.png'>\n" % outname)
+			o.write("        <li><img src='.%s/2_colorbar.png' width='auto' height='200'></li>\n" % outname)
+			o.write("        </a>\n")
+		o.write("    </ul>\n")
+		o.write("</body>\n")
+		o.write("</html>\n")
+		o.close()
+
+DESCRIPTION = "Voxel Snapshots"
+
+def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
+	ap.add_argument("-o", "--outputname",
+		help = "[Required] Output basename", 
+		nargs = 1,
+		type = str,
+		metavar = 'str')
+	group = ap.add_mutually_exclusive_group(required=True)
+	group.add_argument("-ivb", "--importvoxelbase",
+		help = "[Required] Base overlay. Input {img | lut | low thr| high thr }", 
+		nargs = '+',
+		type = str,
+		metavar = '*')
+	ap.add_argument("-iv1", "--importvoxel1",
+		help = "[Optional] First overlay. Input {img | lut | low thr| high thr }", 
+		nargs = '+',
+		type = str,
+		metavar = '*')
+	ap.add_argument("-iv2", "--importvoxel2",
+		help = "[Optional] Second overlay. Input {img | lut | low thr| high thr }", 
+		nargs = '+',
+		type = str,
+		metavar = '*')
+	ap.add_argument("-imo", "--addmaskoutline",
+		help = "Import a volume, binarize it, and paint outline on each png file. Input volume and lower threshold",
+		nargs = '+',
+		metavar = ['img','lower_threshold'])
+
+	ap.add_argument("-ns", "--numslices",
+		help = "The number of slices. Default = %(default)s", 
+		nargs = 1,
+		type = int,
+		default = [10],
+		metavar = 'int')
+	ap.add_argument("-k", "--keepimages",
+		help = "Do not cleanup intermediate png files for each slice",
+		action = 'store_true')
+	ap.add_argument("-ttype", "--thesholdingtype",
+		help = "Method used to set the the lower threshold if thresholds are not supplied (Default is Oshu).",
+		choices = ['otsu', 'otsu_p', 'li', 'li_p', 'yen', 'yen_p', 'zscore'])
+
+	group.add_argument("--plotluts",
+		help = "Plots the avalable lookup tables, and exits.",
+		action = 'store_true')
+	return ap
+
+def run(opts):
+	if opts.plotluts:
+		display_matplotlib_luts()
+		sys.exit()
+
+	if opts.importvoxelbase:
+		if opts.outputname is None:
+			print "Output name is required"
+			sys.exit()
+
+		if opts.thesholdingtype is None:
+			threshtype = 'otsu'
+		elif opts.thesholdingtype == 'otsu':
+			threshtype = 'otsu'
+		elif opts.thesholdingtype == 'li':
+			threshtype = 'li'
+		elif opts.thesholdingtype == 'yen':
+			threshtype = 'yen'
+		elif opts.thesholdingtype == 'otsu_p':
+			threshtype = 'otsu_p'
+		elif opts.thesholdingtype == 'li_p':
+			threshtype = 'li_p'
+		elif opts.thesholdingtype == 'yen_p':
+			threshtype = 'yen_p'
+		else:
+			threshtype = 'zscore'
+
+		imgname = opts.importvoxelbase[0]
+		invol = nib.load(imgname)
+		c_map = get_cmap_array(opts.importvoxelbase[1], 0)
+		numslices = opts.numslices[0]
+		data = check_byteorder(invol.get_data())
+
+		if len(opts.importvoxelbase) == 4:
+			lthres = float(opts.importvoxelbase[2])
+			uthres = float(opts.importvoxelbase[3])
+		elif len(opts.importvoxelbase) == 2:
+			lthres, uthres = autothreshold(data, threshtype)
+			print "%s Lower Threshold = %1.2f" % (os.path.basename(opts.importvoxelbase[0]),lthres)
+			print "%s Upper Threshold = %1.2f" % (os.path.basename(opts.importvoxelbase[0]),uthres)
+		else:
+			print "Error"
+
+		x_rng,  y_rng, z_rng = nonempty_coordinate_range(data, invol.affine)
+		scalar_field = apply_affine_to_scalar_field(data, invol.affine)
+
+		surfb = mlab.pipeline.image_plane_widget(scalar_field,
+			plane_orientation='x_axes',
+			vmin=lthres,
+			vmax=uthres,
+			plane_opacity = 0,
+			name = "X_%s" % imgname,
+			slice_index = int(data.shape[1]/2))
+		surfb.module_manager.scalar_lut_manager.lut.table = c_map
+		surfb.ipw.reslice_interpolate = 'nearest_neighbour'
+		surfb.scene.x_plus_view()
+		rl_cmap = colors.ListedColormap(c_map[:,0:3]/255)
+		write_colorbar(np.array((lthres,uthres)), rl_cmap, opts.importvoxelbase[1])
+		os.system("mv %s_colorbar.png 0_colorbar.png" % opts.importvoxelbase[1])
+
+		if opts.importvoxel1:
+
+			imgname = opts.importvoxel1[0]
+			invol = nib.load(imgname)
+			c_map = get_cmap_array(opts.importvoxel1[1], 0)
+			data = check_byteorder(invol.get_data())
+
+			if len(opts.importvoxel1) == 4:
+				lthres = float(opts.importvoxel1[2])
+				uthres = float(opts.importvoxel1[3])
+			elif len(opts.importvoxel1) == 2:
+				lthres, uthres = autothreshold(data, threshtype)
+				print "%s Lower Threshold = %1.2f" % (os.path.basename(opts.importvoxel1[0]),lthres)
+				print "%s Upper Threshold = %1.2f" % (os.path.basename(opts.importvoxel1[0]),uthres)
+			else:
+				print "Error"
+
+			scalar_field = apply_affine_to_scalar_field(data, invol.affine)
+			surf1 = mlab.pipeline.image_plane_widget(scalar_field,
+				plane_orientation='x_axes',
+				vmin=lthres,
+				vmax=uthres,
+				plane_opacity = 0,
+				name = "X_%s" % imgname,
+				slice_index = int(data.shape[1]/2))
+			surf1.module_manager.scalar_lut_manager.lut.table = c_map
+			surf1.ipw.reslice_interpolate = 'nearest_neighbour'
+			surf1.scene.x_plus_view()
+			rl_cmap = colors.ListedColormap(c_map[:,0:3]/255)
+			write_colorbar(np.array((lthres,uthres)), rl_cmap, opts.importvoxel1[1])
+			os.system("mv %s_colorbar.png 1_colorbar.png" % opts.importvoxel1[1])
+
+		if opts.importvoxel2:
+
+			imgname = opts.importvoxel2[0]
+			invol = nib.load(imgname)
+			c_map = get_cmap_array(opts.importvoxel2[1], 0)
+			data = check_byteorder(invol.get_data())
+
+			if len(opts.importvoxel2) == 4:
+				lthres = float(opts.importvoxel2[2])
+				uthres = float(opts.importvoxel2[3])
+			elif len(opts.importvoxel2) == 2:
+				lthres, uthres = autothreshold(data, threshtype)
+				print "%s Lower Threshold = %1.2f" % (os.path.basename(opts.importvoxel2[0]),lthres)
+				print "%s Upper Threshold = %1.2f" % (os.path.basename(opts.importvoxel2[0]),uthres)
+			else:
+				print "Error"
+
+			scalar_field = apply_affine_to_scalar_field(data, invol.affine)
+			surf2 = mlab.pipeline.image_plane_widget(scalar_field,
+				plane_orientation='x_axes',
+				vmin=lthres,
+				vmax=uthres,
+				plane_opacity = 0,
+				name = "X_%s" % imgname,
+				slice_index = int(data.shape[1]/2))
+			surf2.module_manager.scalar_lut_manager.lut.table = c_map
+			surf2.ipw.reslice_interpolate = 'nearest_neighbour'
+			surf2.scene.x_plus_view()
+			rl_cmap = colors.ListedColormap(c_map[:,0:3]/255)
+			write_colorbar(np.array((lthres,uthres)), rl_cmap, opts.importvoxel2[1])
+			os.system("mv %s_colorbar.png 2_colorbar.png" % opts.importvoxel2[1])
+
+		count = 0
+		for xval in np.linspace(x_rng[0]+1,x_rng[1]-5,numslices):
+			surfb.ipw.slice_position = xval
+			if opts.importvoxel1:
+				surf1.ipw.slice_position = xval
+				surf1.scene.x_plus_view()
+			if opts.importvoxel2:
+				surf2.ipw.slice_position = xval
+				surf2.scene.x_plus_view()
+			surfb.scene.x_plus_view()
+			surfb.scene.background = (0,0,0)
+			mlab.savefig('X_Slice_%d.png' % count, size = (400,400))
+			correct_image('X_Slice_%d.png' % count)
+			count+=1
+
+		count = 0
+		for yval in np.linspace(y_rng[0]+1,y_rng[1]-1,numslices):
+			surfb.ipw.plane_orientation = 'y_axes'
+			surfb.ipw.slice_position = yval
+			if opts.importvoxel1:
+				surf1.ipw.plane_orientation = 'y_axes'
+				surf1.ipw.slice_position = yval
+				surf1.scene.y_plus_view()
+			if opts.importvoxel2:
+				surf2.ipw.plane_orientation = 'y_axes'
+				surf2.ipw.slice_position = yval
+				surf2.scene.y_plus_view()
+			surfb.scene.y_plus_view()
+			surfb.scene.background = (0,0,0)
+			mlab.savefig('Y_Slice_%d.png' % count, size = (400,400))
+			correct_image('Y_Slice_%d.png' % count, rotate = 90)
+			count+=1
+
+		count = 0
+		for zval in np.linspace(x_rng[0]+1,x_rng[1]-1,numslices):
+			surfb.ipw.plane_orientation = 'z_axes'
+			surfb.ipw.slice_position = zval
+			if opts.importvoxel1:
+				surf1.ipw.plane_orientation = 'z_axes'
+				surf1.ipw.slice_position = zval
+				surf1.scene.z_plus_view()
+			if opts.importvoxel2:
+				surf2.ipw.plane_orientation = 'z_axes'
+				surf2.ipw.slice_position = zval
+				surf2.scene.z_plus_view()
+			surfb.scene.z_plus_view()
+			surfb.scene.background = (0,0,0)
+			mlab.savefig('Z_Slice_%d.png' % count, size = (400,400))
+			correct_image('Z_Slice_%d.png' % count)
+			count+=1
+	cleanup = True
+	if opts.keepimages:
+		cleanup = False
+
+	if opts.addmaskoutline:
+		mlab.close(all=True)
+		invol = nib.load(opts.addmaskoutline[0])
+
+		data = check_byteorder(invol.get_data())
+
+		if len(opts.addmaskoutline) == 2:
+			lthres = float(opts.addmaskoutline[1])
+		elif len(opts.addmaskoutline) == 1:
+			lthres, _ = autothreshold(data, threshtype)
+		else:
+			print "Error"
+
+		data[data <= lthres] = 0
+		data[data > lthres] = 1
+
+		scalar_field = apply_affine_to_scalar_field(data, invol.affine)
+		c_map = get_cmap_array('tm-white', 0)
+
+		mask = mlab.pipeline.image_plane_widget(scalar_field,
+				plane_orientation='x_axes',
+				vmin = 0,
+				vmax = 1,
+				plane_opacity = 0,
+				name = "Mask",
+				slice_index = int(data.shape[1]/2))
+		mask.module_manager.scalar_lut_manager.lut.table = c_map
+		mask.scene.background = (0,0,0)
+		mask.scene.x_plus_view()
+
+		count = 0
+		for xval in np.linspace(x_rng[0]+1,x_rng[1]-5,numslices):
+			mask.ipw.slice_position = xval
+			mask.scene.x_plus_view()
+			mask.scene.background = (0,0,0)
+			mlab.savefig('X_mask_%d.png' % count, size = (400,400))
+			correct_image('X_mask_%d.png' % count)
+			draw_outline('X_Slice_%d.png' % count,'X_mask_%d.png' % count)
+			count+=1
+		count = 0
+		for yval in np.linspace(y_rng[0]+1,y_rng[1]-1,numslices):
+			mask.ipw.plane_orientation = 'y_axes'
+			mask.ipw.slice_position = yval
+			mask.scene.y_plus_view()
+			mask.scene.background = (0,0,0)
+			mlab.savefig('Y_mask_%d.png' % count, size = (400,400))
+			correct_image('Y_mask_%d.png' % count, rotate = 90)
+			draw_outline('Y_Slice_%d.png' % count,'Y_mask_%d.png' % count)
+			count+=1
+		count = 0
+		for zval in np.linspace(x_rng[0]+1,x_rng[1]-1,numslices):
+			mask.ipw.plane_orientation = 'z_axes'
+			mask.ipw.slice_position = zval
+			mask.scene.z_plus_view()
+			mask.scene.background = (0,0,0)
+			mlab.savefig('Z_mask_%d.png' % count, size = (400,400))
+			correct_image('Z_mask_%d.png' % count)
+			draw_outline('Z_Slice_%d.png' % count,'Z_mask_%d.png' % count)
+			count+=1
+
+	coordinates = np.stack((np.linspace(x_rng[0]+1,x_rng[1]-5,numslices),np.linspace(y_rng[0]+1,y_rng[1]-1,numslices),np.linspace(z_rng[0]+1,z_rng[1]-1,numslices))).T
+	concate_images('X_Slice', numslices, clean=cleanup)
+	concate_images('Y_Slice', numslices, clean=cleanup)
+	concate_images('Z_Slice', numslices, clean=cleanup)
+	make_slice_html("%s.html" % opts.outputname[0], coordinates, opts.importvoxel1, opts.importvoxel2)
+
+if __name__ == "__main__":
+	parser = getArgumentParser()
+	opts = parser.parse_args()
+	run(opts)
+
