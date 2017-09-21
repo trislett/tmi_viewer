@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import matplotlib.image as mpimg
 from scipy import ndimage
+from scipy.special import erf
 import matplotlib.cbook
 from skimage import filters
 if 'QT_API' not in os.environ:
@@ -64,6 +65,24 @@ def apply_affine_to_scalar_field(data, affine):
 	src = mlab.pipeline.scalar_field(xi, yi, zi, data)
 	return src
 
+# applies the affine to the scalar field coordinates
+def apply_affine_to_contour3d(data, affine, lthresh, hthresh, name, contours = 15, opacity = 0.7):
+	data = np.array(data)
+	size_x, size_y, size_z = data.shape
+	x,y,z = np.where(data!=55378008)
+	coord = np.column_stack((x,y))
+	coord = np.column_stack((coord,z))
+	coord_array = nib.affines.apply_affine(affine, coord)
+	xi = coord_array[:,0].reshape(size_x, size_y, size_z) * np.sign(affine[0,0])
+	yi = coord_array[:,1].reshape(size_x, size_y, size_z) * np.sign(affine[1,1])
+	zi = coord_array[:,2].reshape(size_x, size_y, size_z) * np.sign(affine[2,2])
+	src = mlab.contour3d(xi, yi, zi, data,
+		vmin = lthresh,
+		vmax = hthresh,
+		opacity = opacity,
+		name = name,
+		contours=contours)
+	return src
 
 # returns the non-empty range
 def nonempty_coordinate_range(data, affine):
@@ -75,7 +94,7 @@ def nonempty_coordinate_range(data, affine):
 	return (x_minmax,y_minmax,z_minmax)
 
 
-# function for creating linear look-up tables
+# linear function look-up tables
 def linear_cm(c0,c1,c2 = None):
 	c_map = np.zeros((256,3))
 	if c2 is not None:
@@ -88,7 +107,7 @@ def linear_cm(c0,c1,c2 = None):
 	return c_map
 
 
-# function for creating log look-up tables
+# log function look-up tables
 def log_cm(c0,c1,c2 = None):
 	c_map = np.zeros((256,3))
 	if c2 is not None:
@@ -98,6 +117,21 @@ def log_cm(c0,c1,c2 = None):
 	else:
 		for i in range(3):
 			c_map[:,i] = np.geomspace(c0[i] + 1,c1[i] + 1,256)-1
+	return c_map
+
+
+# error function look-up tables
+def erf_cm(c0,c1,c2 = None):
+	c_map = np.zeros((256,3))
+	weights = erf(np.linspace(0,3,255))
+	if c2 is not None:
+		for i in range(3):
+			c_map[0:128,i] = erf(np.linspace(3*(c0[i]/255),3*(c1[i]/255),128)) * 255
+			c_map[127:256,i] = erf(np.linspace(3*(c1[i]/255),3*(c2[i]/255),129)) * 255
+	else:
+		for i in range(3):
+			#c_map[:,i] = erf(np.linspace(0,3,256)) * np.linspace(c0[i], c1[i], 256)
+			c_map[:,i] = erf(np.linspace(3*(c0[i]/255),3*(c1[i]/255),256)) * 255 
 	return c_map
 
 
@@ -125,6 +159,7 @@ def display_matplotlib_luts():
 	maps.append(u'tm-flow')
 	maps.append(u'tm-logBluGry')
 	maps.append(u'tm-logRedYel')
+	maps.append(u'tm-erfRGB')
 	nmaps = len(maps) + 1
 
 	fig = plt.figure(figsize=(8,12))
@@ -160,6 +195,9 @@ def display_matplotlib_luts():
 		elif m == 'tm-logRedYel':
 			cmap_array = log_cm([102,0,0],[200,0,0],[255,255,0]) / 255
 			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'tm-erfRGB':
+			cmap_array = erf_cm([255,0,0],[0,255,0], [0,0,255]) / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
 		else:
 			plt.imshow(a, aspect='auto', cmap=plt.get_cmap(m), origin='lower')
 		pos = list(ax.get_position().bounds)
@@ -177,23 +215,25 @@ def get_cmap_array(lut, alpha = 255, zero_lower = True, zero_upper = False, base
 	if (str(lut) == 'r-y') or (str(lut) == 'red-yellow'):
 		cmap_array = np.column_stack((linear_cm([255,0,0],[255,255,0]),np.ones(256)*255))
 	elif (str(lut) == 'b-lb') or (str(lut) == 'blue-lightblue'):
-		cmap_array =  np.column_stack((linear_cm([0,0,255],[0,255,255]),np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([0,0,255],[0,255,255]),np.ones(256)*255))
 	elif (str(lut) == 'g-lg') or (str(lut) == 'green-lightgreen'):
-		cmap_array =  np.column_stack((linear_cm([0,128,0],[0,255,0]),np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([0,128,0],[0,255,0]),np.ones(256)*255))
 	elif str(lut) == 'tm-breeze':
-		cmap_array =  np.column_stack((linear_cm([199,233,180],[65,182,196],[37,52,148]),np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([199,233,180],[65,182,196],[37,52,148]),np.ones(256)*255))
 	elif str(lut) == 'tm-summer':
-		cmap_array =  np.column_stack((linear_cm([255,255,51],[255,128,0],[204,0,0]),np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([255,255,51],[255,128,0],[204,0,0]),np.ones(256)*255))
 	elif str(lut) == 'tm-storm':
-		cmap_array =  np.column_stack((linear_cm([0,153,0],[255,255,0],[204,0,0]),np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([0,153,0],[255,255,0],[204,0,0]),np.ones(256)*255))
 	elif str(lut) == 'tm-flow':
-		cmap_array =  np.column_stack((log_cm([51,51,255],[255,0,0],[255,255,255]),np.ones(256)*255))
+		cmap_array = np.column_stack((log_cm([51,51,255],[255,0,0],[255,255,255]),np.ones(256)*255))
 	elif str(lut) == 'tm-logBluGry':
-		cmap_array =  np.column_stack((log_cm([0,0,51],[0,0,255],[255,255,255]),np.ones(256)*255))
+		cmap_array = np.column_stack((log_cm([0,0,51],[0,0,255],[255,255,255]),np.ones(256)*255))
 	elif str(lut) == 'tm-logRedYel':
-		cmap_array =  np.column_stack((log_cm([102,0,0],[200,0,0],[255,255,0]),np.ones(256)*255))
+		cmap_array = np.column_stack((log_cm([102,0,0],[200,0,0],[255,255,0]),np.ones(256)*255))
+	elif str(lut) == 'tm-erfRGB':
+		cmap_array = np.column_stack((erf_cm([255,0,0],[0,255,0], [0,0,255]),np.ones(256)*255))
 	elif str(lut) == 'tm-white':
-		cmap_array =  np.column_stack((linear_cm([255,255,255],[255,255,255]),np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([255,255,255],[255,255,255]),np.ones(256)*255))
 	else:
 		try:
 			cmap_array = eval('plt.cm.%s(np.arange(256))' % lut)
@@ -232,14 +272,31 @@ def correct_image(img_name, rotate = None, b_transparent = True):
 		img = ndimage.rotate(img, float(rotate))
 	mpimg.imsave(img_name, img)
 
+# add coordinates to the image slices
+def add_text_to_img(image_file, add_txt, opacity = 200, color = [0,0,0]):
+	from PIL import Image, ImageDraw, ImageFont
+	base = Image.open(image_file).convert('RGBA')
+	txt = Image.new('RGBA', base.size, (255,255,255,0))
+	numpixels = base.size[0]
+	fnt_size = int(numpixels / 16) # scale the font
+	fnt = ImageFont.truetype('Pillow/Tests/fonts/FreeMono.ttf', fnt_size)
+	start = int(numpixels - (.875 * numpixels))
+	stop = int(.875 * numpixels)
+
+	d = ImageDraw.Draw(txt)
+	d.text((start,start), str(add_txt), font=fnt, fill=(color[0],color[1],color[2],opacity))
+	out = Image.alpha_composite(base, txt)
+	mpimg.imsave(image_file, np.array(out))
 
 # crop and concatenate images
-def concate_images(basename, num, clean=False):
+def concate_images(basename, num, clean=False, numpixels = 400):
+	start = int(numpixels - (.875 * numpixels))
+	stop = int(.875 * numpixels)
 	for i in range(num):
 		if i == 0:
-			outpng = mpimg.imread("%s_0.png" % basename)[50:350,50:350,:]
+			outpng = mpimg.imread("%s_0.png" % basename)[start:stop,start:stop,:]
 		else:
-			tempng = mpimg.imread("%s_%d.png" % (basename, i))[50:350,50:350,:]
+			tempng = mpimg.imread("%s_%d.png" % (basename, i))[start:stop,start:stop,:]
 			outpng = np.concatenate((outpng,tempng),1)
 		if i == (num-1):
 			mpimg.imsave('%ss.png' % basename, outpng)
@@ -291,7 +348,7 @@ def autothreshold(data, threshold_type = 'otsu', z = 2.3264):
 
 
 # makes a webpage of slices
-def make_slice_html(outname, coordinates, iv1, iv2):
+def make_slice_html(outname, coordinates, iv1, iv2, write_coordinates = True):
 	if not os.path.exists(".%s" % outname):
 		os.mkdir(".%s" % outname)
 	os.system("mv ?_Slices.png .%s/" % outname)
@@ -318,20 +375,23 @@ def make_slice_html(outname, coordinates, iv1, iv2):
 		o.write("</head>\n")
 		o.write("<body>\n")
 		o.write("  <h1>X Axis </h1>\n")
-		o.write("    <p><span> X = %s </span>" % ', X = '.join([ '%.1f' % elem for elem in coordinates[:,0] ]))
-		o.write("    </p>")
+		if write_coordinates:
+			o.write("    <p><span> X = %s </span>" % ', X = '.join([ '%.1f' % elem for elem in coordinates[:,0] ]))
+			o.write("    </p>")
 		o.write("    <a href='.%s/X_Slices.png'>\n" % outname)
 		o.write("    <img src = '.%s/X_Slices.png' width='100%%'>\n" % outname)
 		o.write("    </a>\n")
 		o.write("  <h1> Y Axis </h1>\n")
-		o.write("    <p><centre> Y = %s</centre>" % ', Y = '.join([ '%.1f' % elem for elem in coordinates[:,1] ]))
-		o.write("    </p>")
+		if write_coordinates:
+			o.write("    <p><centre> Y = %s</centre>" % ', Y = '.join([ '%.1f' % elem for elem in coordinates[:,1] ]))
+			o.write("    </p>")
 		o.write("    <a href='.%s/Y_Slices.png'>\n" % outname)
 		o.write("    <img src = '.%s/Y_Slices.png' width='100%%'>\n" % outname)
 		o.write("    </a>\n")
 		o.write("  <h1>Z Axis </h1>\n")
-		o.write("    <p>Z = %s " % ', Z = '.join([ '%.1f' % elem for elem in coordinates[:,2] ]))
-		o.write("    </p>")
+		if write_coordinates:
+			o.write("    <p>Z = %s " % ', Z = '.join([ '%.1f' % elem for elem in coordinates[:,2] ]))
+			o.write("    </p>")
 		o.write("    <a href='.%s/Z_Slices.png'>\n" % outname)
 		o.write("    <img src = '.%s/Z_Slices.png' width='100%%'>\n" % outname)
 		o.write("    </a>\n")

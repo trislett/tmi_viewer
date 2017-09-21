@@ -27,7 +27,7 @@ import matplotlib.colors as colors
 from tfce_mediation.tm_io import read_tm_filetype
 from tfce_mediation.tm_func import print_tmi_history
 from tfce_mediation.pyfunc import convert_voxel, convert_fs, write_colorbar, create_adjac_vertex, vectorized_surface_smooth
-from tmi_viewer.tv_func import check_byteorder, apply_affine_to_scalar_field, display_matplotlib_luts, get_cmap_array, correct_image, autothreshold, write_dict, make_html
+from tmi_viewer.tv_func import check_byteorder, apply_affine_to_scalar_field, display_matplotlib_luts, get_cmap_array, correct_image, autothreshold, write_dict, make_html, apply_affine_to_contour3d
 from tmi_viewer.version import __version__
 
 # hopefully safer loading of mayavi
@@ -77,6 +77,11 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		metavar = 'int')
 	ap.add_argument("-dvsf", "--displayvoxelscalarfield",
 		help = "Display a volume an x and y plane scalar field. The mask and contrast must be entered as integers (check values with -oh).", 
+		nargs = '+',
+		type = int,
+		metavar = 'int')
+	ap.add_argument("-dvc", "--displayvoxelcontour",
+		help = "Display a volume as a 3D contour. The mask and contrast must be entered as integers (check values with -oh).", 
 		nargs = '+',
 		type = int,
 		metavar = 'int')
@@ -134,6 +139,13 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		help = """
 			Import a volume display it as an default [x, y] plane scalar field. e.g., -ivsf mean_FA_skeleton_mask.nii.gz  0.2 0.8
 			Only one volume can be added. A lookup table can be specified as the forth argument (the default is the -lut option).""", 
+		nargs = '*',
+		metavar = ['str|float|float|str'])
+	ap.add_argument("-ivc", "--importvoxelcontour",
+		help = """
+			Import a volume display it as an default [x, y] plane scalar field. e.g., -ivsf mean_FA_skeleton_mask.nii.gz 0.2 0.8
+			Only one volume can be added. Optional arguments: (4) lookup table (the default is the -lut option), (5) opacity (default 
+			is 0.7), (6) Number of contours (default is 20)""",
 		nargs = '*',
 		metavar = ['str|float|float|str'])
 	ap.add_argument("-sfa", "--scalarfieldaxis",
@@ -198,6 +210,7 @@ def run(opts):
 			print "Error: no surface or volume imports (use -iv or -ifs)."
 			sys.exit()
 
+	# load tmi
 	if opts.inputtmi:
 		_, image_array, masking_array, maskname_array, affine_array, vertex_array, face_array, surfname, _, tmi_history, columnids = read_tm_filetype(opts.inputtmi[0], verbose=False)
 		# get the positions of masked data in image_array
@@ -208,7 +221,6 @@ def run(opts):
 			position_array.append(pointer)
 		del pointer
 
-	# load tmi
 	if opts.history:
 		num_con = image_array[0].shape[1]
 		if num_con > 500: # safer
@@ -223,6 +235,92 @@ def run(opts):
 	# make custom look-up table
 	cmap_array = get_cmap_array(opts.lookuptable[0], float(opts.alpha[0]))
 
+	# load scalar fields first.
+	if opts.importvoxelscalarfield:
+		if len(opts.importvoxelscalarfield) == 3:
+			vol_cmap_array = get_cmap_array(opts.lookuptable[3], 0)
+			vol_opacity = opts.opacity[0]
+		elif len(opts.importvoxelscalarfield) == 4:
+			vol_cmap_array = get_cmap_array(opts.importvoxelscalarfield[3], 0)
+			vol_opacity = opts.opacity[0]
+		elif len(opts.importvoxelscalarfield) == 5:
+			vol_cmap_array = get_cmap_array(opts.importvoxelscalarfield[3], 0)
+			vol_opacity = float(opts.importvoxelscalarfield[4])
+		else:
+			print "Error -ivsf must have three, four or five inputs"
+			sys.exit()
+		invol = nib.load(str(opts.importvoxelscalarfield[0]))
+		data = check_byteorder(invol.get_data())
+
+		scalar_field = apply_affine_to_scalar_field(data, invol.affine)
+
+		if opts.scalarfieldaxis:
+			axis_array = opts.scalarfieldaxis
+		else:
+			axis_array = ['X', 'Y']
+
+		for axis in axis_array:
+			if axis == 'X':
+				orien = 'x_axes'
+			if axis == 'Y':
+				orien = 'y_axes'
+			if axis == 'Z':
+				orien = 'z_axes'
+			surf = mlab.pipeline.image_plane_widget(scalar_field,
+				plane_orientation='%s' % orien,
+				vmin = float(opts.importvoxelscalarfield[1]),
+				vmax = float(opts.importvoxelscalarfield[2]),
+				opacity = vol_opacity,
+				name = "%s_%s" % (axis, os.path.basename(str(opts.importvoxelscalarfield[0]))),
+				slice_index=int(data.shape[0]/2))
+			surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
+			surf.ipw.reslice_interpolate = 'nearest_neighbour'
+		mlab.outline()
+
+	if opts.displayvoxelscalarfield:
+		cmap_array[0] = [227,218,201,0]
+		if len(opts.displayvoxelscalarfield) % 2 != 0:
+			print "Error: There must be two inputs per voxel surface (mask, contrast)."
+			sys.exit()
+
+		for j in range(int(len(opts.displayvoxelscalarfield)/2)):
+			c_mask = opts.displayvoxelscalarfield[0 + int(j*2)]
+			c_contrast = opts.displayvoxelscalarfield[1 + int(j*2)]
+
+			start = position_array[c_mask]
+			end = position_array[c_mask+1]
+
+			mask = masking_array[c_mask]
+			scalar_data = np.zeros((mask.shape[0],mask.shape[1],mask.shape[2]))
+			scalar_data[mask] = image_array[0][start:end,c_contrast]
+
+			scalar_field = apply_affine_to_scalar_field(scalar_data, affine_array[c_mask])
+
+
+			if opts.scalarfieldaxis:
+				axis_array = opts.scalarfieldaxis
+			else:
+				axis_array = ['X', 'Y']
+
+			for axis in axis_array:
+				if axis == 'X':
+					orien = 'x_axes'
+				if axis == 'Y':
+					orien = 'y_axes'
+				if axis == 'Z':
+					orien = 'z_axes'
+				surf = mlab.pipeline.image_plane_widget(scalar_field,
+					plane_orientation='%s' % orien,
+					vmin = float(opts.thresholds[0]),
+					vmax = float(opts.thresholds[1]),
+					opacity = opts.opacity[0],
+					name = "%s_%s" % (axis, maskname_array[c_mask]),
+					slice_index=int(scalar_data.shape[0]/2))
+				surf.module_manager.scalar_lut_manager.lut.table = cmap_array
+				surf.ipw.reslice_interpolate = 'nearest_neighbour'
+			mlab.outline()
+
+	# load surfaces
 	if opts.display:
 		if len(opts.display) % 3 != 0:
 			print "Error: There must be three inputs per surface (mask, surface, contrast)."
@@ -295,15 +393,19 @@ def run(opts):
 			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
-	if opts.displayvoxelscalarfield:
+
+
+	if opts.displayvoxelcontour:
+
 		cmap_array[0] = [227,218,201,0]
-		if len(opts.displayvoxelscalarfield) % 2 != 0:
+
+		if len(opts.displayvoxelcontour) % 2 != 0:
 			print "Error: There must be two inputs per voxel surface (mask, contrast)."
 			sys.exit()
 
-		for j in range(int(len(opts.displayvoxelscalarfield)/2)):
-			c_mask = opts.displayvoxelscalarfield[0 + int(j*2)]
-			c_contrast = opts.displayvoxelscalarfield[1 + int(j*2)]
+		for j in range(int(len(opts.displayvoxelcontour)/2)):
+			c_mask = opts.displayvoxelcontour[0 + int(j*2)]
+			c_contrast = opts.displayvoxelcontour[1 + int(j*2)]
 
 			start = position_array[c_mask]
 			end = position_array[c_mask+1]
@@ -312,31 +414,13 @@ def run(opts):
 			scalar_data = np.zeros((mask.shape[0],mask.shape[1],mask.shape[2]))
 			scalar_data[mask] = image_array[0][start:end,c_contrast]
 
-			scalar_field = apply_affine_to_scalar_field(scalar_data, affine_array[c_mask])
-
-
-			if opts.scalarfieldaxis:
-				axis_array = opts.scalarfieldaxis
-			else:
-				axis_array = ['X', 'Y']
-
-			for axis in axis_array:
-				if axis == 'X':
-					orien = 'x_axes'
-				if axis == 'Y':
-					orien = 'y_axes'
-				if axis == 'Z':
-					orien = 'z_axes'
-				surf = mlab.pipeline.image_plane_widget(scalar_field,
-					plane_orientation='%s' % orien,
-					vmin = float(opts.thresholds[0]),
-					vmax = float(opts.thresholds[1]),
-					opacity = opts.opacity[0],
-					name = "%s_%s" % (axis, maskname_array[c_mask]),
-					slice_index=int(scalar_data.shape[0]/2))
-				surf.module_manager.scalar_lut_manager.lut.table = cmap_array
-				surf.ipw.reslice_interpolate = 'nearest_neighbour'
-			mlab.outline()
+			surf = apply_affine_to_contour3d(scalar_data, affine_array[c_mask],
+				lthresh = opts.thresholds[0],
+				hthresh = opts.thresholds[1],
+				name = maskname_array[c_mask],
+				opacity = 0.7)
+			surf.contour.minimum_contour = float(opts.thresholds[0])
+			surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
 
 	if opts.displaysurface:
 		for c_surf in opts.displaysurface:
@@ -404,15 +488,15 @@ def run(opts):
 	if opts.thresholdimportvolume:
 		if len(opts.thresholdimportvolume) == 3:
 			vol_cmap_array = get_cmap_array(opts.lookuptable[3], 0)
-			vol_occupancy = opts.opacity[0]
+			vol_opacity = opts.opacity[0]
 		elif len(opts.thresholdimportvolume) == 4:
 			vol_cmap_array = get_cmap_array(opts.thresholdimportvolume[3], 0)
-			vol_occupancy = opts.opacity[0]
+			vol_opacity = opts.opacity[0]
 		elif len(opts.thresholdimportvolume) == 5:
 			vol_cmap_array = get_cmap_array(opts.thresholdimportvolume[3], 0)
-			vol_occupancy = float(opts.thresholdimportvolume[4])
+			vol_opacity = float(opts.thresholdimportvolume[4])
 		else:
-			print "Error -ivt must have three, four or five inputs"
+			print "Error -ivt must have three to five inputs (image, low threshold, high threshold, lut, opacity)"
 			sys.exit()
 		invol = nib.load(str(opts.thresholdimportvolume[0]))
 		data = check_byteorder(invol.get_data())
@@ -429,53 +513,43 @@ def run(opts):
 			scalars = scalar_data, 
 			vmin = float(opts.thresholdimportvolume[1]),
 			vmax = float(opts.thresholdimportvolume[2]),
-			opacity = vol_occupancy,
+			opacity = vol_opacity,
 			name = os.path.basename(str(opts.thresholdimportvolume[0])))
 		surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
 		surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
 
-	if opts.importvoxelscalarfield:
-		if len(opts.importvoxelscalarfield) == 3:
+	if opts.importvoxelcontour:
+		# defaults
+		vol_opacity = 0.7
+		num_contours = 20
+		if len(opts.importvoxelcontour) == 3:
 			vol_cmap_array = get_cmap_array(opts.lookuptable[3], 0)
-			vol_occupancy = opts.opacity[0]
-		elif len(opts.importvoxelscalarfield) == 4:
-			vol_cmap_array = get_cmap_array(opts.importvoxelscalarfield[3], 0)
-			vol_occupancy = opts.opacity[0]
-		elif len(opts.importvoxelscalarfield) == 5:
-			vol_cmap_array = get_cmap_array(opts.importvoxelscalarfield[3], 0)
-			vol_occupancy = float(opts.importvoxelscalarfield[4])
+		elif len(opts.importvoxelcontour) == 4:
+			vol_cmap_array = get_cmap_array(opts.importvoxelcontour[3], 0)
+		elif len(opts.importvoxelcontour) == 5:
+			vol_cmap_array = get_cmap_array(opts.importvoxelcontour[3], 0)
+			vol_opacity = float(opts.importvoxelcontour[4])
+		elif len(opts.importvoxelcontour) == 6:
+			vol_cmap_array = get_cmap_array(opts.importvoxelcontour[3], 0)
+			vol_opacity = float(opts.importvoxelcontour[4])
+			num_contours = int(opts.importvoxelcontour[5])
 		else:
-			print "Error -ivsf must have three, four or five inputs"
+			print "Error -ivc must have three to six inputs (image, low threshold, high threshold, lut, opacity, # contours)"
 			sys.exit()
-		invol = nib.load(str(opts.importvoxelscalarfield[0]))
+		invol = nib.load(str(opts.importvoxelcontour[0]))
 		data = check_byteorder(invol.get_data())
 
-		scalar_field = apply_affine_to_scalar_field(data, invol.affine)
+		surf = apply_affine_to_contour3d(data, invol.affine,
+			lthresh = float(opts.importvoxelcontour[1]),
+			hthresh = float(opts.importvoxelcontour[2]),
+			name = os.path.basename(str(opts.importvoxelcontour[0])),
+			contours = num_contours,
+			opacity = vol_opacity)
+		surf.contour.minimum_contour = float(opts.importvoxelcontour[1]) - (float(opts.importvoxelcontour[2]) - float(opts.importvoxelcontour[1]))
+		surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
 
-		if opts.scalarfieldaxis:
-			axis_array = opts.scalarfieldaxis
-		else:
-			axis_array = ['X', 'Y']
-
-		for axis in axis_array:
-			if axis == 'X':
-				orien = 'x_axes'
-			if axis == 'Y':
-				orien = 'y_axes'
-			if axis == 'Z':
-				orien = 'z_axes'
-			surf = mlab.pipeline.image_plane_widget(scalar_field,
-				plane_orientation='%s' % orien,
-				vmin = float(opts.importvoxelscalarfield[1]),
-				vmax = float(opts.importvoxelscalarfield[2]),
-				opacity = vol_occupancy,
-				name = "%s_%s" % (axis, os.path.basename(str(opts.importvoxelscalarfield[0]))),
-				slice_index=int(data.shape[0]/2))
-			surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
-			surf.ipw.reslice_interpolate = 'nearest_neighbour'
-		mlab.outline()
-
+		surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
 	if opts.importfreesurfer:
 		for i, insurf in enumerate(opts.importfreesurfer):
