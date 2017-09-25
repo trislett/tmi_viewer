@@ -341,6 +341,11 @@ def autothreshold(data, threshold_type = 'otsu', z = 2.3264):
 		lthres = filters.threshold_yen(data)
 		uthres = data[data>lthres].mean() + (z*data[data>lthres].std())
 		# Yen J.C., Chang F.J., and Chang S. (1995) A New Criterion for Automatic Multilevel Thresholding IEEE Trans. on Image Processing, 4(3): 370-378.
+	elif threshold_type == 'zscore_p':
+		lthres = data.mean() - (z*data.std())
+		uthres = data.mean() + (z*data.std())
+		if lthres < 0:
+			lthres = 0.001
 	else:
 		lthres = data.mean() - (z*data.std())
 		uthres = data.mean() + (z*data.std())

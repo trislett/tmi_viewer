@@ -393,7 +393,37 @@ def run(opts):
 			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
+	if opts.importvoxelcontour:
+		# defaults
+		vol_opacity = 0.7
+		num_contours = 20
+		if len(opts.importvoxelcontour) == 3:
+			vol_cmap_array = get_cmap_array(opts.lookuptable[3], 0)
+		elif len(opts.importvoxelcontour) == 4:
+			vol_cmap_array = get_cmap_array(opts.importvoxelcontour[3], 0)
+		elif len(opts.importvoxelcontour) == 5:
+			vol_cmap_array = get_cmap_array(opts.importvoxelcontour[3], 0)
+			vol_opacity = float(opts.importvoxelcontour[4])
+		elif len(opts.importvoxelcontour) == 6:
+			vol_cmap_array = get_cmap_array(opts.importvoxelcontour[3], 0)
+			vol_opacity = float(opts.importvoxelcontour[4])
+			num_contours = int(opts.importvoxelcontour[5])
+		else:
+			print "Error -ivc must have three to six inputs (image, low threshold, high threshold, lut, opacity, # contours)"
+			sys.exit()
+		invol = nib.load(str(opts.importvoxelcontour[0]))
+		data = check_byteorder(invol.get_data())
 
+		surf = apply_affine_to_contour3d(data, invol.affine,
+			lthresh = float(opts.importvoxelcontour[1]),
+			hthresh = float(opts.importvoxelcontour[2]),
+			name = os.path.basename(str(opts.importvoxelcontour[0])),
+			contours = num_contours,
+			opacity = vol_opacity)
+		surf.contour.minimum_contour = float(opts.importvoxelcontour[1])
+		surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
+
+		surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
 	if opts.displayvoxelcontour:
 
@@ -420,7 +450,7 @@ def run(opts):
 				name = maskname_array[c_mask],
 				opacity = 0.7)
 			surf.contour.minimum_contour = float(opts.thresholds[0])
-			surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
+			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 
 	if opts.displaysurface:
 		for c_surf in opts.displaysurface:
@@ -518,39 +548,6 @@ def run(opts):
 		surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
 		surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
-
-	if opts.importvoxelcontour:
-		# defaults
-		vol_opacity = 0.7
-		num_contours = 20
-		if len(opts.importvoxelcontour) == 3:
-			vol_cmap_array = get_cmap_array(opts.lookuptable[3], 0)
-		elif len(opts.importvoxelcontour) == 4:
-			vol_cmap_array = get_cmap_array(opts.importvoxelcontour[3], 0)
-		elif len(opts.importvoxelcontour) == 5:
-			vol_cmap_array = get_cmap_array(opts.importvoxelcontour[3], 0)
-			vol_opacity = float(opts.importvoxelcontour[4])
-		elif len(opts.importvoxelcontour) == 6:
-			vol_cmap_array = get_cmap_array(opts.importvoxelcontour[3], 0)
-			vol_opacity = float(opts.importvoxelcontour[4])
-			num_contours = int(opts.importvoxelcontour[5])
-		else:
-			print "Error -ivc must have three to six inputs (image, low threshold, high threshold, lut, opacity, # contours)"
-			sys.exit()
-		invol = nib.load(str(opts.importvoxelcontour[0]))
-		data = check_byteorder(invol.get_data())
-
-		surf = apply_affine_to_contour3d(data, invol.affine,
-			lthresh = float(opts.importvoxelcontour[1]),
-			hthresh = float(opts.importvoxelcontour[2]),
-			name = os.path.basename(str(opts.importvoxelcontour[0])),
-			contours = num_contours,
-			opacity = vol_opacity)
-		surf.contour.minimum_contour = float(opts.importvoxelcontour[1]) - (float(opts.importvoxelcontour[2]) - float(opts.importvoxelcontour[1]))
-		surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
-
-		surf.actor.mapper.interpolate_scalars_before_mapping = 1
-
 	if opts.importfreesurfer:
 		for i, insurf in enumerate(opts.importfreesurfer):
 			v, f = convert_fs(insurf)
@@ -575,7 +572,7 @@ def run(opts):
 					scalars = scalar_data, 
 					vmin = opts.thresholds[0],
 					vmax = opts.thresholds[1],
-					name = mghvol)
+					name = os.path.basename(mghvol))
 				
 				surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 
@@ -587,7 +584,7 @@ def run(opts):
 						mode = str(opts.smoothingtype[0]))
 
 				surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
-					name = insurf,
+					name = os.path.basename(insurf),
 					opacity = opts.opacity[0],
 					color = (227/255, 218/255, 201/255))
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1

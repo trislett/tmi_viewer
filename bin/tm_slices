@@ -83,7 +83,7 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		action = 'store_true')
 	ap.add_argument("-ttype", "--thesholdingtype",
 		help = "Method used to set the the lower threshold if thresholds are not supplied (Default is Oshu).",
-		choices = ['otsu', 'otsu_p', 'li', 'li_p', 'yen', 'yen_p', 'zscore'])
+		choices = ['otsu', 'otsu_p', 'li', 'li_p', 'yen', 'yen_p', 'zscore', 'zscore_p'])
 	ap.add_argument("--slicesize",
 		help = "Default height and width of each output slice. Default is %(default)s pixels (i.e. 400x400)",
 		nargs = 1,
@@ -93,6 +93,12 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 	ap.add_argument("-hc", "--hardcodecoordinates",
 		help = "Writes the slices coordinates to the image file.",
 		action = 'store_true')
+	ap.add_argument("--zthresh",
+		help = "The z value to use for thresholding. Default = %(default)s.",
+		nargs = 1,
+		type = float,
+		default = [2.3264],
+		metavar = 'float')
 
 	group.add_argument("--plotluts",
 		help = "Plots the avalable lookup tables, and exits.",
@@ -107,8 +113,6 @@ def run(opts):
 	if opts.plotluts:
 		display_matplotlib_luts()
 		sys.exit()
-
-
 
 	if opts.importvoxelbase:
 		if opts.outputname is None:
@@ -128,10 +132,10 @@ def run(opts):
 			threshtype = 'li_p'
 		elif opts.thesholdingtype == 'yen_p':
 			threshtype = 'yen_p'
+		elif opts.thesholdingtype == 'zscore_p':
+			threshtype = 'zscore_p'
 		else:
 			threshtype = 'zscore'
-
-
 
 		imgname = opts.importvoxelbase[0]
 		invol = nib.load(imgname)
@@ -144,7 +148,7 @@ def run(opts):
 			lthres = float(opts.importvoxelbase[2])
 			uthres = float(opts.importvoxelbase[3])
 		elif len(opts.importvoxelbase) == 2:
-			lthres, uthres = autothreshold(data, threshtype)
+			lthres, uthres = autothreshold(data, threshtype, opts.zthresh[0])
 			print "%s Lower Threshold = %1.2f" % (os.path.basename(opts.importvoxelbase[0]),lthres)
 			print "%s Upper Threshold = %1.2f" % (os.path.basename(opts.importvoxelbase[0]),uthres)
 		else:
@@ -178,7 +182,7 @@ def run(opts):
 				lthres = float(opts.importvoxel1[2])
 				uthres = float(opts.importvoxel1[3])
 			elif len(opts.importvoxel1) == 2:
-				lthres, uthres = autothreshold(data, threshtype)
+				lthres, uthres = autothreshold(data, threshtype, opts.zthresh[0])
 				print "%s Lower Threshold = %1.2f" % (os.path.basename(opts.importvoxel1[0]),lthres)
 				print "%s Upper Threshold = %1.2f" % (os.path.basename(opts.importvoxel1[0]),uthres)
 			else:
@@ -210,7 +214,7 @@ def run(opts):
 				lthres = float(opts.importvoxel2[2])
 				uthres = float(opts.importvoxel2[3])
 			elif len(opts.importvoxel2) == 2:
-				lthres, uthres = autothreshold(data, threshtype)
+				lthres, uthres = autothreshold(data, threshtype, opts.zthresh[0])
 				print "%s Lower Threshold = %1.2f" % (os.path.basename(opts.importvoxel2[0]),lthres)
 				print "%s Upper Threshold = %1.2f" % (os.path.basename(opts.importvoxel2[0]),uthres)
 			else:
@@ -302,7 +306,7 @@ def run(opts):
 		if len(opts.addmaskoutline) == 2:
 			lthres = float(opts.addmaskoutline[1])
 		elif len(opts.addmaskoutline) == 1:
-			lthres, _ = autothreshold(data, threshtype)
+			lthres, _ = autothreshold(data, threshtype, opts.zthresh[0])
 		else:
 			print "Error"
 
