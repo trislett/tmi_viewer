@@ -124,7 +124,7 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		type = str,
 		metavar = 'str')
 	ap.add_argument("-ivb", "--binarizedimportvolume",
-		help = "Import volume(s) (nifti or minc) and set all non-zero values to one. e.g., -biv mean_FA_skeleton_mask.nii.gz", 
+		help = "Import volume(s) (nifti or minc) and set all non-zero values to one. e.g., -ivb mean_FA_skeleton_mask.nii.gz", 
 		nargs = '+',
 		type = str,
 		metavar = 'str')
@@ -152,6 +152,12 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		help = "Select axis/axes for scalar field. Only  {X, Y, Z} are valid arguements",
 		nargs = '+',
 		metavar = 'axis')
+	ap.add_argument("-sfo", "--sfplaneopacity",
+		help = "Set the plane opacity for scalar fields (the outline will be removed). Default is: %(default)s",
+		nargs = 1,
+		type = float,
+		default = [1],
+		metavar = 'float')
 	ap.add_argument("-ifs", "--importfreesurfer",
 		help = """
 			Import a freesurfer surface (use 'tm_multimodal create-tmi' to add other surface types). 
@@ -249,7 +255,7 @@ def run(opts):
 		else:
 			print "Error -ivsf must have three, four or five inputs"
 			sys.exit()
-		invol = nib.load(str(opts.importvoxelscalarfield[0]))
+		invol = nib.as_closest_canonical(nib.load(str(opts.importvoxelscalarfield[0])))
 		data = check_byteorder(invol.get_data())
 
 		scalar_field = apply_affine_to_scalar_field(data, invol.affine)
@@ -271,11 +277,13 @@ def run(opts):
 				vmin = float(opts.importvoxelscalarfield[1]),
 				vmax = float(opts.importvoxelscalarfield[2]),
 				opacity = vol_opacity,
+				plane_opacity = float(opts.sfplaneopacity[0]),
 				name = "%s_%s" % (axis, os.path.basename(str(opts.importvoxelscalarfield[0]))),
 				slice_index=int(data.shape[0]/2))
 			surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
 			surf.ipw.reslice_interpolate = 'nearest_neighbour'
-		mlab.outline()
+		if float(opts.sfplaneopacity[0]) == 1.0:
+			mlab.outline()
 
 	if opts.displayvoxelscalarfield:
 		cmap_array[0] = [227,218,201,0]
@@ -314,11 +322,13 @@ def run(opts):
 					vmin = float(opts.thresholds[0]),
 					vmax = float(opts.thresholds[1]),
 					opacity = opts.opacity[0],
+					plane_opacity = float(opts.sfplaneopacity[0]),
 					name = "%s_%s" % (axis, maskname_array[c_mask]),
 					slice_index=int(scalar_data.shape[0]/2))
 				surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 				surf.ipw.reslice_interpolate = 'nearest_neighbour'
-			mlab.outline()
+			if float(opts.sfplaneopacity[0]) == 1.0:
+				mlab.outline()
 
 	# load surfaces
 	if opts.display:
@@ -411,7 +421,7 @@ def run(opts):
 		else:
 			print "Error -ivc must have three to six inputs (image, low threshold, high threshold, lut, opacity, # contours)"
 			sys.exit()
-		invol = nib.load(str(opts.importvoxelcontour[0]))
+		invol = nib.as_closest_canonical(nib.load(str(opts.importvoxelcontour[0])))
 		data = check_byteorder(invol.get_data())
 
 		surf = apply_affine_to_contour3d(data, invol.affine,
@@ -472,7 +482,7 @@ def run(opts):
 
 	if opts.importvolume:
 		for volume in opts.importvolume:
-			invol = nib.load(volume)
+			invol =  nib.as_closest_canonical(nib.load(volume))
 			data = check_byteorder(invol.get_data())
 			v, f, scalar_data = convert_voxel(data, affine = invol.get_affine())
 
@@ -501,7 +511,7 @@ def run(opts):
 
 	if opts.binarizedimportvolume:
 		for volume in opts.binarizedimportvolume:
-			invol = nib.load(volume)
+			invol =  nib.as_closest_canonical(nib.load(volume))
 			data = check_byteorder(invol.get_data())
 
 			data[data != 0] = 1 # binary sandwich
@@ -528,7 +538,7 @@ def run(opts):
 		else:
 			print "Error -ivt must have three to five inputs (image, low threshold, high threshold, lut, opacity)"
 			sys.exit()
-		invol = nib.load(str(opts.thresholdimportvolume[0]))
+		invol =  nib.as_closest_canonical(nib.load(str(opts.thresholdimportvolume[0])))
 		data = check_byteorder(invol.get_data())
 		v, f, scalar_data = convert_voxel(data, affine = invol.get_affine())
 

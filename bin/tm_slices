@@ -93,6 +93,12 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 	ap.add_argument("-hc", "--hardcodecoordinates",
 		help = "Writes the slices coordinates to the image file.",
 		action = 'store_true')
+	ap.add_argument("--interpolation",
+		help = "Specify the reslice interpolation (choices are: %(choices)s). The default is nearest_neighbour",
+		nargs = 1,
+		choices = ['cubic','linear', 'nearest_neighbour'],
+		default = ['nearest_neighbour'],
+		metavar = 'str')
 	ap.add_argument("--zthresh",
 		help = "The z value to use for thresholding. Default = %(default)s.",
 		nargs = 1,
@@ -138,11 +144,12 @@ def run(opts):
 			threshtype = 'zscore'
 
 		imgname = opts.importvoxelbase[0]
-		invol = nib.load(imgname)
+		invol = nib.as_closest_canonical(nib.load(imgname))
 		c_map = get_cmap_array(opts.importvoxelbase[1], 0)
 		numslices = opts.numslices[0]
 		numpixels = opts.slicesize[0]
 		data = check_byteorder(invol.get_data())
+#		data = data[::int(np.sign(invol.affine[0,0])),::int(np.sign(invol.affine[1,1])),::int(np.sign(invol.affine[2,2]))] # why??????
 
 		if len(opts.importvoxelbase) == 4:
 			lthres = float(opts.importvoxelbase[2])
@@ -165,7 +172,7 @@ def run(opts):
 			name = "X_%s" % imgname,
 			slice_index = int(data.shape[1]/2))
 		surfb.module_manager.scalar_lut_manager.lut.table = c_map
-		surfb.ipw.reslice_interpolate = 'nearest_neighbour'
+		surfb.ipw.reslice_interpolate = str(opts.interpolation[0])
 		surfb.scene.x_plus_view()
 		rl_cmap = colors.ListedColormap(c_map[:,0:3]/255)
 		write_colorbar(np.array((lthres,uthres)), rl_cmap, opts.importvoxelbase[1])
@@ -174,7 +181,7 @@ def run(opts):
 		if opts.importvoxel1:
 
 			imgname = opts.importvoxel1[0]
-			invol = nib.load(imgname)
+			invol = nib.as_closest_canonical(nib.load(imgname))
 			c_map = get_cmap_array(opts.importvoxel1[1], 0)
 			data = check_byteorder(invol.get_data())
 
@@ -197,7 +204,7 @@ def run(opts):
 				name = "X_%s" % imgname,
 				slice_index = int(data.shape[1]/2))
 			surf1.module_manager.scalar_lut_manager.lut.table = c_map
-			surf1.ipw.reslice_interpolate = 'nearest_neighbour'
+			surf1.ipw.reslice_interpolate = str(opts.interpolation[0])
 			surf1.scene.x_plus_view()
 			rl_cmap = colors.ListedColormap(c_map[:,0:3]/255)
 			write_colorbar(np.array((lthres,uthres)), rl_cmap, opts.importvoxel1[1])
@@ -206,7 +213,7 @@ def run(opts):
 		if opts.importvoxel2:
 
 			imgname = opts.importvoxel2[0]
-			invol = nib.load(imgname)
+			invol = nib.as_closest_canonical(nib.load(imgname))
 			c_map = get_cmap_array(opts.importvoxel2[1], 0)
 			data = check_byteorder(invol.get_data())
 
@@ -229,7 +236,7 @@ def run(opts):
 				name = "X_%s" % imgname,
 				slice_index = int(data.shape[1]/2))
 			surf2.module_manager.scalar_lut_manager.lut.table = c_map
-			surf2.ipw.reslice_interpolate = 'nearest_neighbour'
+			surf2.ipw.reslice_interpolate = str(opts.interpolation[0])
 			surf2.scene.x_plus_view()
 			rl_cmap = colors.ListedColormap(c_map[:,0:3]/255)
 			write_colorbar(np.array((lthres,uthres)), rl_cmap, opts.importvoxel2[1])
@@ -269,7 +276,7 @@ def run(opts):
 			surfb.scene.y_plus_view()
 			surfb.scene.background = (0,0,0)
 			mlab.savefig('Y_Slice_%d.png' % count, size = (numpixels,numpixels))
-			correct_image('Y_Slice_%d.png' % count, rotate = 90)
+			correct_image('Y_Slice_%d.png' % count, rotate = 90, flip = True)
 			if opts.hardcodecoordinates:
 				add_text_to_img('Y_Slice_%d.png' % count, "Y = %1.2f" % yval)
 			count += 1

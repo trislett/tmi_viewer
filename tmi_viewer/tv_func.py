@@ -38,6 +38,7 @@ except:
 	os.environ['QT_API'] = 'pyside'
 	from mayavi import mlab
 
+
 # makes sure that endianess is correct for the system
 def check_byteorder(np_array):
 	if sys.byteorder == 'little':
@@ -53,15 +54,17 @@ def check_byteorder(np_array):
 
 # applies the affine to the scalar field coordinates
 def apply_affine_to_scalar_field(data, affine):
-	data = np.array(data)
+	data_array = np.zeros_like(data)
+	data_array[:] = np.copy(data)
 	size_x, size_y, size_z = data.shape
 	x,y,z = np.where(data!=55378008)
 	coord = np.column_stack((x,y))
 	coord = np.column_stack((coord,z))
 	coord_array = nib.affines.apply_affine(affine, coord)
-	xi = coord_array[:,0].reshape(size_x, size_y, size_z) * np.sign(affine[0,0])
-	yi = coord_array[:,1].reshape(size_x, size_y, size_z) * np.sign(affine[1,1])
-	zi = coord_array[:,2].reshape(size_x, size_y, size_z) * np.sign(affine[2,2])
+	xi = coord_array[:,0].reshape(size_x, size_y, size_z)
+	yi = coord_array[:,1].reshape(size_x, size_y, size_z)
+	zi = coord_array[:,2].reshape(size_x, size_y, size_z)
+
 	src = mlab.pipeline.scalar_field(xi, yi, zi, data)
 	return src
 
@@ -73,9 +76,9 @@ def apply_affine_to_contour3d(data, affine, lthresh, hthresh, name, contours = 1
 	coord = np.column_stack((x,y))
 	coord = np.column_stack((coord,z))
 	coord_array = nib.affines.apply_affine(affine, coord)
-	xi = coord_array[:,0].reshape(size_x, size_y, size_z) * np.sign(affine[0,0])
-	yi = coord_array[:,1].reshape(size_x, size_y, size_z) * np.sign(affine[1,1])
-	zi = coord_array[:,2].reshape(size_x, size_y, size_z) * np.sign(affine[2,2])
+	xi = coord_array[:,0].reshape(size_x, size_y, size_z)
+	yi = coord_array[:,1].reshape(size_x, size_y, size_z)
+	zi = coord_array[:,2].reshape(size_x, size_y, size_z)
 	src = mlab.contour3d(xi, yi, zi, data,
 		vmin = lthresh,
 		vmax = hthresh,
@@ -252,7 +255,7 @@ def get_cmap_array(lut, alpha = 255, zero_lower = True, zero_upper = False, base
 
 
 # Remove black from png
-def correct_image(img_name, rotate = None, b_transparent = True):
+def correct_image(img_name, rotate = None, b_transparent = True, flip = False):
 	img = mpimg.imread(img_name)
 	if b_transparent:
 		if img_name.endswith('.png'):
@@ -270,6 +273,8 @@ def correct_image(img_name, rotate = None, b_transparent = True):
 			img = img_flat.reshape([rows, columns, 4])
 	if rotate is not None:
 		img = ndimage.rotate(img, float(rotate))
+	if flip:
+		img = img[:,::-1,:]
 	mpimg.imsave(img_name, img)
 
 # add coordinates to the image slices
