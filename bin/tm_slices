@@ -110,8 +110,8 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		help = "Plots the avalable lookup tables, and exits.",
 		action = 'store_true')
 	ap.add_argument('-v', '--version', 
-		action='version', 
-		version='%(prog)s ' + __version__)
+		action = 'version', 
+		version = '%(prog)s ' + __version__)
 	return ap
 
 def run(opts):
@@ -156,8 +156,8 @@ def run(opts):
 			uthres = float(opts.importvoxelbase[3])
 		elif len(opts.importvoxelbase) == 2:
 			lthres, uthres = autothreshold(data, threshtype, opts.zthresh[0])
-			print "%s Lower Threshold = %1.2f" % (os.path.basename(opts.importvoxelbase[0]),lthres)
-			print "%s Upper Threshold = %1.2f" % (os.path.basename(opts.importvoxelbase[0]),uthres)
+			print "%s Lower Threshold = %1.2f" % (os.path.basename(opts.importvoxelbase[0]), lthres)
+			print "%s Upper Threshold = %1.2f" % (os.path.basename(opts.importvoxelbase[0]), uthres)
 		else:
 			print "Error"
 
@@ -190,8 +190,8 @@ def run(opts):
 				uthres = float(opts.importvoxel1[3])
 			elif len(opts.importvoxel1) == 2:
 				lthres, uthres = autothreshold(data, threshtype, opts.zthresh[0])
-				print "%s Lower Threshold = %1.2f" % (os.path.basename(opts.importvoxel1[0]),lthres)
-				print "%s Upper Threshold = %1.2f" % (os.path.basename(opts.importvoxel1[0]),uthres)
+				print "%s Lower Threshold = %1.2f" % (os.path.basename(opts.importvoxel1[0]), lthres)
+				print "%s Upper Threshold = %1.2f" % (os.path.basename(opts.importvoxel1[0]), uthres)
 			else:
 				print "Error"
 
@@ -222,8 +222,8 @@ def run(opts):
 				uthres = float(opts.importvoxel2[3])
 			elif len(opts.importvoxel2) == 2:
 				lthres, uthres = autothreshold(data, threshtype, opts.zthresh[0])
-				print "%s Lower Threshold = %1.2f" % (os.path.basename(opts.importvoxel2[0]),lthres)
-				print "%s Upper Threshold = %1.2f" % (os.path.basename(opts.importvoxel2[0]),uthres)
+				print "%s Lower Threshold = %1.2f" % (os.path.basename(opts.importvoxel2[0]), lthres)
+				print "%s Upper Threshold = %1.2f" % (os.path.basename(opts.importvoxel2[0]), uthres)
 			else:
 				print "Error"
 
@@ -245,7 +245,7 @@ def run(opts):
 
 
 		count = 0
-		for xval in np.linspace(x_rng[0]+1, x_rng[1]-5, numslices):
+		for xval in np.round(np.linspace(x_rng[0]+1, x_rng[1]-5, numslices)):
 			surfb.ipw.slice_position = xval
 			if opts.importvoxel1:
 				surf1.ipw.slice_position = xval
@@ -258,11 +258,11 @@ def run(opts):
 			mlab.savefig('X_Slice_%d.png' % count, size = (numpixels,numpixels))
 			correct_image('X_Slice_%d.png' % count)
 			if opts.hardcodecoordinates:
-				add_text_to_img('X_Slice_%d.png' % count, "X = %1.2f" % xval)
+				add_text_to_img('X_Slice_%d.png' % count, "X = %.0f" % xval)
 			count += 1
 
 		count = 0
-		for yval in np.linspace(y_rng[0]+1, y_rng[1]-1, numslices):
+		for yval in np.round(np.linspace(y_rng[0]+1, y_rng[1]-1, numslices)):
 			surfb.ipw.plane_orientation = 'y_axes'
 			surfb.ipw.slice_position = yval
 			if opts.importvoxel1:
@@ -278,11 +278,11 @@ def run(opts):
 			mlab.savefig('Y_Slice_%d.png' % count, size = (numpixels,numpixels))
 			correct_image('Y_Slice_%d.png' % count, rotate = 90, flip = True)
 			if opts.hardcodecoordinates:
-				add_text_to_img('Y_Slice_%d.png' % count, "Y = %1.2f" % yval)
+				add_text_to_img('Y_Slice_%d.png' % count, "Y = %.0f" % yval)
 			count += 1
 
 		count = 0
-		for zval in np.linspace(x_rng[0]+1, x_rng[1]-1, numslices):
+		for zval in np.round(np.linspace(x_rng[0]+1, x_rng[1]-1, numslices)):
 			surfb.ipw.plane_orientation = 'z_axes'
 			surfb.ipw.slice_position = zval
 			if opts.importvoxel1:
@@ -298,7 +298,7 @@ def run(opts):
 			mlab.savefig('Z_Slice_%d.png' % count, size = (numpixels,numpixels))
 			correct_image('Z_Slice_%d.png' % count)
 			if opts.hardcodecoordinates:
-				add_text_to_img('Z_Slice_%d.png' % count, "Z = %1.2f" % zval)
+				add_text_to_img('Z_Slice_%d.png' % count, "Z = %.0f" % zval)
 			count+=1
 	cleanup = True
 	if opts.keepimages:
@@ -339,7 +339,7 @@ def run(opts):
 		mask.scene.x_plus_view()
 
 		count = 0
-		for xval in np.linspace(x_rng[0]+1, x_rng[1]-5, numslices):
+		for xval in np.round(np.linspace(x_rng[0]+1, x_rng[1]-5, numslices)):
 			mask.ipw.slice_position = xval
 			mask.scene.x_plus_view()
 			mask.scene.background = (0,0,0)
@@ -348,17 +348,17 @@ def run(opts):
 			draw_outline('X_Slice_%d.png' % count,'X_mask_%d.png' % count)
 			count += 1
 		count = 0
-		for yval in np.linspace(y_rng[0]+1, y_rng[1]-1, numslices):
+		for yval in np.round(np.linspace(y_rng[0]+1, y_rng[1]-1, numslices)):
 			mask.ipw.plane_orientation = 'y_axes'
 			mask.ipw.slice_position = yval
 			mask.scene.y_plus_view()
 			mask.scene.background = (0,0,0)
 			mlab.savefig('Y_mask_%d.png' % count, size = (numpixels,numpixels))
-			correct_image('Y_mask_%d.png' % count, rotate = 90)
+			correct_image('Y_mask_%d.png' % count, rotate = 90, flip = True)
 			draw_outline('Y_Slice_%d.png' % count,'Y_mask_%d.png' % count)
 			count += 1
 		count = 0
-		for zval in np.linspace(x_rng[0]+1, x_rng[1]-1, numslices):
+		for zval in np.round(np.linspace(x_rng[0]+1, x_rng[1]-1, numslices)):
 			mask.ipw.plane_orientation = 'z_axes'
 			mask.ipw.slice_position = zval
 			mask.scene.z_plus_view()
@@ -368,21 +368,29 @@ def run(opts):
 			draw_outline('Z_Slice_%d.png' % count,'Z_mask_%d.png' % count)
 			count += 1
 
+	coordinates = np.stack((np.round(np.linspace(x_rng[0]+1, x_rng[1]-5,numslices)), 
+		np.round(np.linspace(y_rng[0]+1, y_rng[1]-1, numslices)),
+		np.round(np.linspace(z_rng[0]+1, z_rng[1]-1, numslices)))).T
+	concate_images('X_Slice', numslices,
+		clean = cleanup,
+		numpixels = numpixels)
+	concate_images('Y_Slice', numslices,
+		clean = cleanup,
+		numpixels = numpixels)
+	concate_images('Z_Slice', numslices,
+		clean = cleanup,
+		numpixels = numpixels)
 
-	coordinates = np.stack((np.linspace(x_rng[0]+1, x_rng[1]-5,numslices), 
-		np.linspace(y_rng[0]+1, y_rng[1]-1, numslices),
-		np.linspace(z_rng[0]+1, z_rng[1]-1, numslices))).T
-	concate_images('X_Slice', numslices, clean = cleanup, numpixels = numpixels)
-	concate_images('Y_Slice', numslices, clean = cleanup, numpixels = numpixels)
-	concate_images('Z_Slice', numslices, clean = cleanup, numpixels = numpixels)
 	write_coordinates = True
 	if opts.hardcodecoordinates:
 		write_coordinates = False
+
 	make_slice_html("%s.html" % opts.outputname[0], 
-		coordinates, 
-		opts.importvoxel1, 
+		coordinates,
+		opts.importvoxel1,
 		opts.importvoxel2,
 		write_coordinates = write_coordinates)
+
 	write_dict(".%s.html/settings" % opts.outputname[0], opts)
 
 if __name__ == "__main__":
