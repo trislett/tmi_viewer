@@ -54,9 +54,11 @@ def check_byteorder(np_array):
 
 # applies the affine to the scalar field coordinates
 def apply_affine_to_scalar_field(data, affine):
-	data_array = np.zeros_like(data)
-	data_array[:] = np.copy(data)
-	size_x, size_y, size_z = data.shape[0], data.shape[1], data.shape[2]
+	data = np.array(data)
+	if data.ndim == 4: # double check
+		print "4D volume detected. Only the first volume will be displayed."
+		data = data[:,:,:,0]
+	size_x, size_y, size_z = data.shape
 	x,y,z = np.where(data!=55378008)
 	coord = np.column_stack((x,y))
 	coord = np.column_stack((coord,z))
@@ -71,7 +73,10 @@ def apply_affine_to_scalar_field(data, affine):
 # applies the affine to the scalar field coordinates
 def apply_affine_to_contour3d(data, affine, lthresh, hthresh, name, contours = 15, opacity = 0.7):
 	data = np.array(data)
-	size_x, size_y, size_z = data.shape[0], data.shape[1], data.shape[2]
+	if data.ndim == 4: # double check
+		print "4D volume detected. Only the first volume will be displayed."
+		data = data[:,:,:,0]
+	size_x, size_y, size_z = data.shape
 	x,y,z = np.where(data!=55378008)
 	coord = np.column_stack((x,y))
 	coord = np.column_stack((coord,z))
