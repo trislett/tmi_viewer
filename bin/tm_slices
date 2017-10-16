@@ -82,7 +82,7 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		help = "Saves a nifti file with the thresholded mask. Must be used with -imo argument",
 		action = 'store_true')
 	ap.add_argument("-ttype", "--thesholdingtype",
-		help = "Method used to set the the lower threshold if thresholds are not supplied (Default is Oshu).",
+		help = "Method used to set the the lower threshold if thresholds are not supplied (Default is otsu).",
 		choices = ['otsu', 'otsu_p', 'li', 'li_p', 'yen', 'yen_p', 'zscore', 'zscore_p'])
 	ap.add_argument("--slicesize",
 		help = "Default height and width of each output slice. Default is %(default)s pixels (i.e. 400x400)",

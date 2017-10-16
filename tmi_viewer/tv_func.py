@@ -56,7 +56,7 @@ def check_byteorder(np_array):
 def apply_affine_to_scalar_field(data, affine):
 	data_array = np.zeros_like(data)
 	data_array[:] = np.copy(data)
-	size_x, size_y, size_z = data.shape
+	size_x, size_y, size_z = data.shape[0], data.shape[1], data.shape[2]
 	x,y,z = np.where(data!=55378008)
 	coord = np.column_stack((x,y))
 	coord = np.column_stack((coord,z))
@@ -71,7 +71,7 @@ def apply_affine_to_scalar_field(data, affine):
 # applies the affine to the scalar field coordinates
 def apply_affine_to_contour3d(data, affine, lthresh, hthresh, name, contours = 15, opacity = 0.7):
 	data = np.array(data)
-	size_x, size_y, size_z = data.shape
+	size_x, size_y, size_z = data.shape[0], data.shape[1], data.shape[2]
 	x,y,z = np.where(data!=55378008)
 	coord = np.column_stack((x,y))
 	coord = np.column_stack((coord,z))
