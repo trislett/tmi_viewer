@@ -157,7 +157,9 @@ def display_matplotlib_luts():
 	maps.append(u'blue-lightblue')
 	maps.append(u'green-lightgreen')
 	maps.append(u'tm-breeze')
-	maps.append(u'tm-summer')
+	maps.append(u'tm-sunset')
+	maps.append(u'tm-broccoli')
+	maps.append(u'tm-octopus')
 	maps.append(u'tm-storm')
 	maps.append(u'tm-flow')
 	maps.append(u'tm-logBluGry')
@@ -183,7 +185,7 @@ def display_matplotlib_luts():
 		elif m == 'tm-breeze':
 			cmap_array = linear_cm([199,233,180],[65,182,196],[37,52,148]) / 255
 			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
-		elif m == 'tm-summer':
+		elif m == 'tm-sunset':
 			cmap_array = linear_cm([255,255,51],[255,128,0],[204,0,0]) / 255
 			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
 		elif m == 'tm-storm':
@@ -201,6 +203,12 @@ def display_matplotlib_luts():
 		elif m == 'tm-erfRGB':
 			cmap_array = erf_cm([255,0,0],[0,255,0], [0,0,255]) / 255
 			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'tm-broccoli':
+			cmap_array = linear_cm([204,255,153],[76,153,0], [0,102,0]) / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
+		elif m == 'tm-octopus':
+			cmap_array = linear_cm([255,204,204],[255,0,255],[102,0,0]) / 255
+			plt.imshow(a, aspect='auto', cmap=colors.ListedColormap(cmap_array,m), origin='lower')
 		else:
 			plt.imshow(a, aspect='auto', cmap=plt.get_cmap(m), origin='lower')
 		pos = list(ax.get_position().bounds)
@@ -216,27 +224,31 @@ def get_cmap_array(lut, alpha = 255, zero_lower = True, zero_upper = False, base
 		lut = lut[:-2]
 	# make custom look-up table
 	if (str(lut) == 'r-y') or (str(lut) == 'red-yellow'):
-		cmap_array = np.column_stack((linear_cm([255,0,0],[255,255,0]),np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([255,0,0],[255,255,0]), np.ones(256)*255))
 	elif (str(lut) == 'b-lb') or (str(lut) == 'blue-lightblue'):
-		cmap_array = np.column_stack((linear_cm([0,0,255],[0,255,255]),np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([0,0,255],[0,255,255]), np.ones(256)*255))
 	elif (str(lut) == 'g-lg') or (str(lut) == 'green-lightgreen'):
-		cmap_array = np.column_stack((linear_cm([0,128,0],[0,255,0]),np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([0,128,0],[0,255,0]), np.ones(256)*255))
 	elif str(lut) == 'tm-breeze':
-		cmap_array = np.column_stack((linear_cm([199,233,180],[65,182,196],[37,52,148]),np.ones(256)*255))
-	elif str(lut) == 'tm-summer':
-		cmap_array = np.column_stack((linear_cm([255,255,51],[255,128,0],[204,0,0]),np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([199,233,180],[65,182,196],[37,52,148]), np.ones(256)*255))
+	elif str(lut) == 'tm-sunset':
+		cmap_array = np.column_stack((linear_cm([255,255,51],[255,128,0],[204,0,0]), np.ones(256)*255))
+	elif str(lut) == 'tm-broccoli':
+		cmap_array = np.column_stack((linear_cm([204,255,153],[76,153,0],[0,102,0]), np.ones(256)*255))
+	elif str(lut) == 'tm-octopus':
+		cmap_array = np.column_stack((linear_cm([255,204,204],[255,0,255],[102,0,0]), np.ones(256)*255))
 	elif str(lut) == 'tm-storm':
-		cmap_array = np.column_stack((linear_cm([0,153,0],[255,255,0],[204,0,0]),np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([0,153,0],[255,255,0],[204,0,0]), np.ones(256)*255))
 	elif str(lut) == 'tm-flow':
-		cmap_array = np.column_stack((log_cm([51,51,255],[255,0,0],[255,255,255]),np.ones(256)*255))
+		cmap_array = np.column_stack((log_cm([51,51,255],[255,0,0],[255,255,255]), np.ones(256)*255))
 	elif str(lut) == 'tm-logBluGry':
-		cmap_array = np.column_stack((log_cm([0,0,51],[0,0,255],[255,255,255]),np.ones(256)*255))
+		cmap_array = np.column_stack((log_cm([0,0,51],[0,0,255],[255,255,255]), np.ones(256)*255))
 	elif str(lut) == 'tm-logRedYel':
-		cmap_array = np.column_stack((log_cm([102,0,0],[200,0,0],[255,255,0]),np.ones(256)*255))
+		cmap_array = np.column_stack((log_cm([102,0,0],[200,0,0],[255,255,0]), np.ones(256)*255))
 	elif str(lut) == 'tm-erfRGB':
-		cmap_array = np.column_stack((erf_cm([255,0,0],[0,255,0], [0,0,255]),np.ones(256)*255))
+		cmap_array = np.column_stack((erf_cm([255,0,0],[0,255,0], [0,0,255]), np.ones(256)*255))
 	elif str(lut) == 'tm-white':
-		cmap_array = np.column_stack((linear_cm([255,255,255],[255,255,255]),np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([255,255,255],[255,255,255]), np.ones(256)*255))
 	else:
 		try:
 			cmap_array = eval('plt.cm.%s(np.arange(256))' % lut)

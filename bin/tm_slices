@@ -306,8 +306,7 @@ def run(opts):
 
 	if opts.addmaskoutline:
 		mlab.close(all=True)
-		invol = nib.load(opts.addmaskoutline[0])
-
+		invol = nib.as_closest_canonical(nib.load(opts.addmaskoutline[0]))
 		data = check_byteorder(invol.get_data())
 
 		if len(opts.addmaskoutline) == 2:

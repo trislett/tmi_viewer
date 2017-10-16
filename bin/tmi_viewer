@@ -58,10 +58,14 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 	group.add_argument("--no-tmi",
 		help="Do not input a TMI file.",
 		action = 'store_true')
-
+	group.add_argument("--plotluts",
+		help = "Plots the avalable lookup tables, and exits.",
+		action = 'store_true')
 	ap.add_argument("-oh", "--history",
 		help="Output tmi file history and exits.", 
 		action='store_true')
+
+	# images from tmi
 	ap.add_argument("-d", "--display",
 		help="""
 			Select which object to display. The mask, surface, contrast must be entered as integers (check values 
@@ -69,8 +73,7 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		nargs = '+',
 		type = int,
 		metavar = 'int')
-	# optional
-	ap.add_argument("-dv", "--displayvoxelmask",
+	ap.add_argument("-dv", "--displayvoxel",
 		help = "Display a volume as a surface. The mask and contrast must be entered as integers (check values with -oh).", 
 		nargs = '+',
 		type = int,
@@ -85,7 +88,13 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		nargs = '+',
 		type = int,
 		metavar = 'int')
+	ap.add_argument("-ds", "--displaysurface",
+		help = "Display a surface without a scalar (i.e., just the surface).", 
+		nargs = '+',
+		type = int,
+		metavar = 'int')
 
+	# settings
 	ap.add_argument("-lut", "--lookuptable",
 		help = """
 			Set the color map to display. The lookuptable can be red-yellow (r-y), blue-lightblue (b-lb), green-lightgreen (g-lg) or any 
@@ -93,9 +102,7 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		type = str,
 		default = ['r-y'],
 		nargs = 1)
-	group.add_argument("--plotluts",
-		help = "Plots the avalable lookup tables, and exits.",
-		action = 'store_true')
+
 	ap.add_argument("-t", "--thresholds",
 		help = "Set lower and upper thresholds. Default is: %(default)s", 
 		default=[.95,1],
@@ -112,12 +119,22 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		type = float,
 		nargs = 1)
 
-	#new
-	ap.add_argument("-ds", "--displaysurface",
-		help = "Display a surface without a scalar (i.e., just the surface).", 
+	# external
+	ap.add_argument("-ifs", "--importfreesurfer",
+		help = """
+			Import a freesurfer surface (use 'tm_multimodal create-tmi' to add other surface types). 
+			e.g., -ifs $SUBJECT_DIR/fsaverage/surf/lh.midthickness""", 
 		nargs = '+',
-		type = int,
-		metavar = 'int')
+		type = str,
+		metavar = 'str')
+	ap.add_argument("-fsmgh", "--importfreesurfermgh",
+		help = """
+			Import a freesurfer scalar (mgh) file(s) that match the input surface(s). The number of inputs 
+			must match the -ifs inputs. e.g., -ifs ?h.midthickness -fsmgh ?h_results_file.mgh
+			""", 
+		nargs = '+',
+		type = str,
+		metavar = 'str')
 	ap.add_argument("-iv", "--importvolume",
 		help = "Import volume(s) (nifti or minc). e.g., -iv mean_FA_skeleton_mask.nii.gz", 
 		nargs = '+',
@@ -132,7 +149,7 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		help = """
 			Import a volume (nifti or minc) and apply a lower and upper threshold. e.g., -ivt mean_FA_skeleton_mask.nii.gz  0.2 0.8. 
 			Only one volume can be added. A lookup table can be specified as the forth argument (the default is the -lut option).
-		""", 
+			""", 
 		nargs = '*',
 		metavar = ['str|float|float|str'])
 	ap.add_argument("-ivsf", "--importvoxelscalarfield",
@@ -158,21 +175,8 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		type = float,
 		default = [1],
 		metavar = 'float')
-	ap.add_argument("-ifs", "--importfreesurfer",
-		help = """
-			Import a freesurfer surface (use 'tm_multimodal create-tmi' to add other surface types). 
-			e.g., -ifs $SUBJECT_DIR/fsaverage/surf/lh.midthickness""", 
-		nargs = '+',
-		type = str,
-		metavar = 'str')
-	ap.add_argument("-fsmgh", "--importfreesurfermgh",
-		help = """
-			Import a freesurfer scalar (mgh) file(s) that match the input surface(s). The number of inputs 
-			must match the -ifs inputs. e.g., -ifs ?h.midthickness -fsmgh ?h_results_file.mgh
-			""", 
-		nargs = '+',
-		type = str,
-		metavar = 'str')
+
+	# saving options
 	ap.add_argument("-save", "--savesnapshots",
 		help = "Save snapshots of the image. Input the basename of the output.", 
 		nargs = 1,
@@ -184,6 +188,8 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		type = str,
 		default = ['png'],
 		metavar = 'filetype')
+
+	# smoothing options
 	ap.add_argument("-ss","--surfacesmoothing",
 		help = "Apply Laplician or Taubin smoothing before visualization. Input the number of iterations (e.g., -ss 5).", 
 		nargs = 1,
@@ -197,6 +203,7 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		choices = ['laplacian','taubin'],
 		default = ['laplacian'],
 		metavar = 'str')
+
 	ap.add_argument('-v', '--version', 
 		action='version', 
 		version='%(prog)s ' + __version__)
@@ -302,7 +309,10 @@ def run(opts):
 			scalar_data = np.zeros((mask.shape[0],mask.shape[1],mask.shape[2]))
 			scalar_data[mask] = image_array[0][start:end,c_contrast]
 
-			scalar_field = apply_affine_to_scalar_field(scalar_data, affine_array[c_mask])
+			invol = nib.as_closest_canonical(nib.Nifti1Image(scalar_data, affine_array[c_mask]))
+			data = check_byteorder(invol.get_data())
+
+			scalar_field = apply_affine_to_scalar_field(data, invol.affine)
 
 
 			if opts.scalarfieldaxis:
@@ -368,17 +378,17 @@ def run(opts):
 			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
-	if opts.displayvoxelmask:
+	if opts.displayvoxel:
 
 		cmap_array[0] = [227,218,201,0]
 
-		if len(opts.displayvoxelmask) % 2 != 0:
+		if len(opts.displayvoxel) % 2 != 0:
 			print "Error: There must be two inputs per voxel surface (mask, contrast)."
 			sys.exit()
 
-		for j in range(int(len(opts.displayvoxelmask)/2)):
-			c_mask = opts.displayvoxelmask[0 + int(j*2)]
-			c_contrast = opts.displayvoxelmask[1 + int(j*2)]
+		for j in range(int(len(opts.displayvoxel)/2)):
+			c_mask = opts.displayvoxel[0 + int(j*2)]
+			c_contrast = opts.displayvoxel[1 + int(j*2)]
 
 			start = position_array[c_mask]
 			end = position_array[c_mask+1]
@@ -386,7 +396,11 @@ def run(opts):
 			mask = masking_array[c_mask]
 			scalar_data = np.zeros((mask.shape[0],mask.shape[1],mask.shape[2]))
 			scalar_data[mask] = image_array[0][start:end,c_contrast]
-			v, f, scalar_data = convert_voxel(scalar_data, affine = affine_array[c_mask])
+
+			invol = nib.as_closest_canonical(nib.Nifti1Image(scalar_data, affine_array[c_mask]))
+			data = check_byteorder(invol.get_data())
+
+			v, f, scalar_data = convert_voxel(data, affine = invol.affine)
 
 			if opts.surfacesmoothing:
 				adjacency = create_adjac_vertex(v,f)
@@ -453,8 +467,10 @@ def run(opts):
 			mask = masking_array[c_mask]
 			scalar_data = np.zeros((mask.shape[0],mask.shape[1],mask.shape[2]))
 			scalar_data[mask] = image_array[0][start:end,c_contrast]
+			invol = nib.as_closest_canonical(nib.Nifti1Image(scalar_data, affine_array[c_mask]))
+			data = check_byteorder(invol.get_data())
 
-			surf = apply_affine_to_contour3d(scalar_data, affine_array[c_mask],
+			surf = apply_affine_to_contour3d(data, invol.affine,
 				lthresh = opts.thresholds[0],
 				hthresh = opts.thresholds[1],
 				name = maskname_array[c_mask],
