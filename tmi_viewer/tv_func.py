@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import matplotlib.image as mpimg
 from scipy import ndimage
+import scipy.misc as misc
 from scipy.special import erf
 import matplotlib.cbook
 from skimage import filters
@@ -273,7 +274,7 @@ def get_cmap_array(lut, alpha = 255, zero_lower = True, zero_upper = False, base
 
 # Remove black from png
 def correct_image(img_name, rotate = None, b_transparent = True, flip = False):
-	img = mpimg.imread(img_name)
+	img = misc.imread(img_name, mode='RGB')
 	if b_transparent:
 		if img_name.endswith('.png'):
 			rows = img.shape[0]
@@ -284,15 +285,16 @@ def correct_image(img_name, rotate = None, b_transparent = True, flip = False):
 				img_flat = img.reshape([rows * columns, 4])
 				img_flat = img_flat[:,:3]
 			alpha = np.zeros([rows*columns, 1], dtype=np.uint8)
-			alpha.fill(1)
-			alpha[np.equal([0,0,0], img_flat).all(1)] = [0]
+			alpha[img_flat[:,0]!=0] = 255
+			alpha[img_flat[:,1]!=0] = 255
+			alpha[img_flat[:,2]!=0] = 255
 			img_flat = np.column_stack([img_flat, alpha])
 			img = img_flat.reshape([rows, columns, 4])
 	if rotate is not None:
 		img = ndimage.rotate(img, float(rotate))
 	if flip:
 		img = img[:,::-1,:]
-	mpimg.imsave(img_name, img)
+	misc.imsave(img_name, img)
 
 # add coordinates to the image slices
 def add_text_to_img(image_file, add_txt, opacity = 200, color = [0,0,0]):

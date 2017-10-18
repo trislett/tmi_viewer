@@ -68,7 +68,28 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		help = "Import a volume, binarize it, and paint its outline on each png file. Input volume and lower threshold",
 		nargs = '+',
 		metavar = ['img','lower_threshold'])
-
+	ap.add_argument("-snb", "--slicenumberbase",
+		help = "[Optional] If base image is 4D, select the slice number (starting at 0)", 
+		nargs = 1,
+		type = int,
+		metavar = 'int')
+	ap.add_argument("-sn1", "--slicenumber1",
+		help = "[Optional] If base image is 4D, select the slice number (starting at 0)", 
+		nargs = 1,
+		type = int,
+		metavar = 'int')
+	ap.add_argument("-sn2", "--slicenumber2",
+		help = "[Optional] If base image is 4D, select the slice number (starting at 0)", 
+		nargs = 1,
+		type = int,
+		metavar = 'int')
+	ap.add_argument("--sign",
+		help = "Set the sign (direction of effect) for input volume. Default = %(default)s. e.g., --sign 1 -1 1", 
+		nargs = 3,
+		type = int,
+		choices = [1,-1],
+		default = [1,1,1],
+		metavar = 'int')
 	ap.add_argument("-ns", "--numslices",
 		help = "The number of slices. Default = %(default)s", 
 		nargs = 1,
@@ -148,7 +169,9 @@ def run(opts):
 		c_map = get_cmap_array(opts.importvoxelbase[1], 0)
 		numslices = opts.numslices[0]
 		numpixels = opts.slicesize[0]
-		data = check_byteorder(invol.get_data())
+		data = check_byteorder(invol.get_data()) * opts.sign[0]
+		if opts.slicenumberbase:
+			data = data[:,:,:,opts.slicenumberbase[0]]
 #		data = data[::int(np.sign(invol.affine[0,0])),::int(np.sign(invol.affine[1,1])),::int(np.sign(invol.affine[2,2]))] # why??????
 
 		if len(opts.importvoxelbase) == 4:
@@ -183,7 +206,9 @@ def run(opts):
 			imgname = opts.importvoxel1[0]
 			invol = nib.as_closest_canonical(nib.load(imgname))
 			c_map = get_cmap_array(opts.importvoxel1[1], 0)
-			data = check_byteorder(invol.get_data())
+			data = check_byteorder(invol.get_data()) * opts.sign[1]
+			if opts.slicenumber1:
+				data = data[:,:,:,opts.slicenumber1[0]]
 
 			if len(opts.importvoxel1) == 4:
 				lthres = float(opts.importvoxel1[2])
@@ -215,7 +240,9 @@ def run(opts):
 			imgname = opts.importvoxel2[0]
 			invol = nib.as_closest_canonical(nib.load(imgname))
 			c_map = get_cmap_array(opts.importvoxel2[1], 0)
-			data = check_byteorder(invol.get_data())
+			data = check_byteorder(invol.get_data()) * opts.sign[2]
+			if opts.slicenumber2:
+				data = data[:,:,:,opts.slicenumber2[0]]
 
 			if len(opts.importvoxel2) == 4:
 				lthres = float(opts.importvoxel2[2])
