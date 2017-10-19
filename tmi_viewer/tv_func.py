@@ -274,7 +274,7 @@ def get_cmap_array(lut, alpha = 255, zero_lower = True, zero_upper = False, base
 
 # Remove black from png
 def correct_image(img_name, rotate = None, b_transparent = True, flip = False):
-	img = misc.imread(img_name, mode='RGB')
+	img = misc.imread(img_name)
 	if b_transparent:
 		if img_name.endswith('.png'):
 			rows = img.shape[0]
