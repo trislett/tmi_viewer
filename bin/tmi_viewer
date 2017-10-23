@@ -61,17 +61,14 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 	group.add_argument("--plotluts",
 		help = "Plots the avalable lookup tables, and exits.",
 		action = 'store_true')
-	ap.add_argument("-oh", "--history",
-		help="Output tmi file history and exits.", 
-		action='store_true')
 
 	# images from tmi
 	ap.add_argument("-d", "--display",
 		help="""
-			Select which object to display. The mask, surface, contrast must be entered as integers (check values 
-			with -oh). Multiple objects can be displayed. The input must be divisible by three.""",
+			Select which object to display. The (1) mask, (2) surface, (3) contrast must be entered as integers (check values with -oh). 
+			Multiple objects can be displayed. Optional inputs: (4) lookup-table (5) Low threshold, (6) High threshold""",
 		nargs = '+',
-		type = int,
+		action = 'append',
 		metavar = 'int')
 	ap.add_argument("-dv", "--displayvoxel",
 		help = "Display a volume as a surface. The mask and contrast must be entered as integers (check values with -oh).", 
@@ -164,6 +161,7 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 			Only one volume can be added. Optional arguments: (4) lookup table (the default is the -lut option), (5) opacity (default 
 			is 0.7), (6) Number of contours (default is 20)""",
 		nargs = '*',
+		action = 'append',
 		metavar = ['str|float|float|str'])
 	ap.add_argument("-sfa", "--scalarfieldaxis",
 		help = "Select axis/axes for scalar field. Only  {X, Y, Z} are valid arguements",
@@ -204,6 +202,12 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		default = ['laplacian'],
 		metavar = 'str')
 
+	ap.add_argument("-oh", "--history",
+		help="Output tmi file history and exits.", 
+		action='store_true')
+	ap.add_argument("-os", "--outputstats",
+		help="Output min/max values from value for each contrast per mask and exits.", 
+		action='store_true')
 	ap.add_argument('-v', '--version', 
 		action='version', 
 		version='%(prog)s ' + __version__)
@@ -244,6 +248,20 @@ def run(opts):
 			num_con = num_con,
 			contrast_names = columnids)
 		sys.exit()
+
+	if opts.outputstats:
+		for c in range(len(columnids[0])):
+			print "\n --- Subject/Contrast[%d]: %s --- \n" % (c, columnids[0][c])
+			for s in range(len(maskname_array)):
+				start = position_array[s]
+				end = position_array[s+1]
+				print "%d \t %s \t [%1.3f, %1.3f]" % (s, 
+					maskname_array[s], 
+					image_array[0][start:end,c].min(), 
+					image_array[0][start:end,c].max())
+		sys.exit()
+
+
 
 	# make custom look-up table
 	cmap_array = get_cmap_array(opts.lookuptable[0], float(opts.alpha[0]))
@@ -342,17 +360,34 @@ def run(opts):
 
 	# load surfaces
 	if opts.display:
-		if len(opts.display) % 3 != 0:
-			print "Error: There must be three inputs per surface (mask, surface, contrast)."
-			sys.exit()
-		num_obj = int(len(opts.display) / 3)
+		for i in range(len(opts.display)):
+			displayoptions = opts.display[i]
+			if len(displayoptions) % 3 != 0:
+				print "Error: There must be at least three inputs per surface (mask, surface, contrast)."
+				sys.exit()
 
-		# display the surfaces
-		for i in range(num_obj):
-			c_mask = opts.display[(0 + int(i*3))]
-			c_surf = opts.display[(1 + int(i*3))]
-			c_contrast = opts.display[(2 + int(i*3))]
 
+			c_mask = int(displayoptions[0])
+			c_surf = int(displayoptions[1])
+			c_contrast = int(displayoptions[2])
+			
+			if len(displayoptions) == 3:
+				surf_cmap_array = cmap_array
+				vmin = opts.thresholds[0]
+				vmax = opts.thresholds[1]
+			elif len(displayoptions) == 4:
+				surf_cmap_array = get_cmap_array(str(displayoptions[3]), 255)
+				vmin = opts.thresholds[0]
+				vmax = opts.thresholds[1]
+			elif len(displayoptions) == 6:
+				surf_cmap_array = get_cmap_array(str(displayoptions[3]), 255)
+				vmin = float(displayoptions[4])
+				vmax = float(displayoptions[5])
+			else:
+				print "Error -d must have three, four or six inputs"
+				sys.exit()
+
+			# display the surfaces
 			start = position_array[c_mask]
 			end = position_array[c_mask+1]
 
@@ -372,10 +407,10 @@ def run(opts):
 			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
 				scalars = scalar_data,
 				opacity = opts.opacity[0],
-				vmin = opts.thresholds[0],
-				vmax = opts.thresholds[1],
+				vmin = vmin,
+				vmax = vmax,
 				name = maskname_array[c_mask])
-			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
+			surf.module_manager.scalar_lut_manager.lut.table = surf_cmap_array
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
 	if opts.displayvoxel:
@@ -418,36 +453,39 @@ def run(opts):
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
 	if opts.importvoxelcontour:
-		# defaults
-		vol_opacity = 0.7
-		num_contours = 20
-		if len(opts.importvoxelcontour) == 3:
-			vol_cmap_array = get_cmap_array(opts.lookuptable[3], 0)
-		elif len(opts.importvoxelcontour) == 4:
-			vol_cmap_array = get_cmap_array(opts.importvoxelcontour[3], 0)
-		elif len(opts.importvoxelcontour) == 5:
-			vol_cmap_array = get_cmap_array(opts.importvoxelcontour[3], 0)
-			vol_opacity = float(opts.importvoxelcontour[4])
-		elif len(opts.importvoxelcontour) == 6:
-			vol_cmap_array = get_cmap_array(opts.importvoxelcontour[3], 0)
-			vol_opacity = float(opts.importvoxelcontour[4])
-			num_contours = int(opts.importvoxelcontour[5])
-		else:
-			print "Error -ivc must have three to six inputs (image, low threshold, high threshold, lut, opacity, # contours)"
-			sys.exit()
-		invol = nib.as_closest_canonical(nib.load(str(opts.importvoxelcontour[0])))
-		data = check_byteorder(invol.get_data())
+		for inputs in range(len(opts.importvoxelcontour)):
+			ivc_options = opts.importvoxelcontour[inputs]
+			# defaults
+			vol_opacity = 0.7
+			num_contours = 20
+			if len(ivc_options) == 3:
+				vol_cmap_array = get_cmap_array(opts.lookuptable[0], 0)
+			elif len(ivc_options) == 4:
+				vol_cmap_array = get_cmap_array(ivc_options[3], 0)
+			elif len(ivc_options) == 5:
+				vol_cmap_array = get_cmap_array(ivc_options[3], 0)
+				vol_opacity = float(ivc_options[4])
+			elif len(ivc_options) == 6:
+				vol_cmap_array = get_cmap_array(ivc_options[3], 0)
+				vol_opacity = float(ivc_options[4])
+				num_contours = int(ivc_options[5])
+			else:
+				print "Error -ivc must have three to six inputs (image, low threshold, high threshold, lut, opacity, # contours)"
+				sys.exit()
+			invol = nib.as_closest_canonical(nib.load(str(ivc_options[0])))
+			data = check_byteorder(invol.get_data())
 
-		surf = apply_affine_to_contour3d(data, invol.affine,
-			lthresh = float(opts.importvoxelcontour[1]),
-			hthresh = float(opts.importvoxelcontour[2]),
-			name = os.path.basename(str(opts.importvoxelcontour[0])),
-			contours = num_contours,
-			opacity = vol_opacity)
-		surf.contour.minimum_contour = float(opts.importvoxelcontour[1])
-		surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
+			surf = apply_affine_to_contour3d(data, invol.affine,
+				lthresh = float(ivc_options[1]),
+				hthresh = float(ivc_options[2]),
+				name = os.path.basename(str(ivc_options[0])),
+				contours = num_contours,
+				opacity = vol_opacity)
+			surf.contour.minimum_contour = float(ivc_options[1])
+			surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
 
-		surf.actor.mapper.interpolate_scalars_before_mapping = 1
+			surf.actor.mapper.interpolate_scalars_before_mapping = 1
+
 
 	if opts.displayvoxelcontour:
 
