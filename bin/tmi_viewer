@@ -201,6 +201,12 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		choices = ['laplacian','taubin'],
 		default = ['laplacian'],
 		metavar = 'str')
+	ap.add_argument("--interpolation",
+		help = "Specify the reslice interpolation (choices are: %(choices)s). The default is nearest_neighbour",
+		nargs = 1,
+		choices = ['cubic','linear', 'nearest_neighbour'],
+		default = ['nearest_neighbour'],
+		metavar = 'str')
 
 	ap.add_argument("-oh", "--history",
 		help="Output tmi file history and exits.", 
@@ -250,17 +256,15 @@ def run(opts):
 		sys.exit()
 
 	if opts.outputstats:
-		for c in range(len(columnids[0])):
-			print "\n --- Subject/Contrast[%d]: %s --- \n" % (c, columnids[0][c])
-			for s in range(len(maskname_array)):
-				start = position_array[s]
-				end = position_array[s+1]
-				print "%d \t %s \t [%1.3f, %1.3f]" % (s, 
-					maskname_array[s], 
-					image_array[0][start:end,c].min(), 
-					image_array[0][start:end,c].max())
+		for i in range(len(columnids[0])):
+			print "\n --- Subject/Contrast[%d]: %s ---\n"  % (i, columnids[0][i])
+			for j, m in enumerate(maskname_array):
+				start = position_array[j]
+				end = position_array[j+1]
+				print "%d\t%s \t [%1.4f, %1.4f]" % (j, m,
+					image_array[0][start:end,i].min(),
+					image_array[0][start:end,i].max())
 		sys.exit()
-
 
 
 	# make custom look-up table
@@ -312,13 +316,26 @@ def run(opts):
 
 	if opts.displayvoxelscalarfield:
 		cmap_array[0] = [227,218,201,0]
-		if len(opts.displayvoxelscalarfield) % 2 != 0:
-			print "Error: There must be two inputs per voxel surface (mask, contrast)."
-			sys.exit()
 
-		for j in range(int(len(opts.displayvoxelscalarfield)/2)):
-			c_mask = opts.displayvoxelscalarfield[0 + int(j*2)]
-			c_contrast = opts.displayvoxelscalarfield[1 + int(j*2)]
+		for options in opts.displayvoxelscalarfield:
+			if len(options) == 2:
+				cmap_array = cmap_array
+				vmin = opts.thresholds[0]
+				vmax = opts.thresholds[1]
+			elif len(options) == 3:
+				cmap_array = get_cmap_array(str(options[2]), 0)
+				vmin = opts.thresholds[0]
+				vmax = opts.thresholds[1]
+			elif len(options) == 5:
+				cmap_array = get_cmap_array(str(options[2]), 0)
+				vmin = float(options[3])
+				vmax = float(options[4])
+			else:
+				print "Error -dvsf must have 2, 3 or 5 inputs"
+				sys.exit()
+
+			c_mask = options[0]
+			c_contrast = options[1]
 
 			start = position_array[c_mask]
 			end = position_array[c_mask+1]
@@ -331,7 +348,6 @@ def run(opts):
 			data = check_byteorder(invol.get_data())
 
 			scalar_field = apply_affine_to_scalar_field(data, invol.affine)
-
 
 			if opts.scalarfieldaxis:
 				axis_array = opts.scalarfieldaxis
@@ -347,44 +363,39 @@ def run(opts):
 					orien = 'z_axes'
 				surf = mlab.pipeline.image_plane_widget(scalar_field,
 					plane_orientation='%s' % orien,
-					vmin = float(opts.thresholds[0]),
-					vmax = float(opts.thresholds[1]),
+					vmin = vmin,
+					vmax = vmax,
 					opacity = opts.opacity[0],
 					plane_opacity = float(opts.sfplaneopacity[0]),
 					name = "%s_%s" % (axis, maskname_array[c_mask]),
 					slice_index=int(scalar_data.shape[0]/2))
 				surf.module_manager.scalar_lut_manager.lut.table = cmap_array
-				surf.ipw.reslice_interpolate = 'nearest_neighbour'
+				surf.ipw.reslice_interpolate = opts.interpolation[0]
 			if float(opts.sfplaneopacity[0]) == 1.0:
 				mlab.outline()
 
 	# load surfaces
 	if opts.display:
-		for i in range(len(opts.display)):
-			displayoptions = opts.display[i]
-			if len(displayoptions) % 3 != 0:
-				print "Error: There must be at least three inputs per surface (mask, surface, contrast)."
-				sys.exit()
+		for options in opts.display:
 
-
-			c_mask = int(displayoptions[0])
-			c_surf = int(displayoptions[1])
-			c_contrast = int(displayoptions[2])
+			c_mask = int(options[0])
+			c_surf = int(options[1])
+			c_contrast = int(options[2])
 			
-			if len(displayoptions) == 3:
+			if len(options) == 3:
 				surf_cmap_array = cmap_array
 				vmin = opts.thresholds[0]
 				vmax = opts.thresholds[1]
-			elif len(displayoptions) == 4:
-				surf_cmap_array = get_cmap_array(str(displayoptions[3]), 255)
+			elif len(options) == 4:
+				surf_cmap_array = get_cmap_array(str(options[3]), 255)
 				vmin = opts.thresholds[0]
 				vmax = opts.thresholds[1]
-			elif len(displayoptions) == 6:
-				surf_cmap_array = get_cmap_array(str(displayoptions[3]), 255)
-				vmin = float(displayoptions[4])
-				vmax = float(displayoptions[5])
+			elif len(options) == 6:
+				surf_cmap_array = get_cmap_array(str(options[3]), 255)
+				vmin = float(options[4])
+				vmax = float(options[5])
 			else:
-				print "Error -d must have three, four or six inputs"
+				print "Error -d must have 3, 4 or 6 inputs"
 				sys.exit()
 
 			# display the surfaces
@@ -417,13 +428,25 @@ def run(opts):
 
 		cmap_array[0] = [227,218,201,0]
 
-		if len(opts.displayvoxel) % 2 != 0:
-			print "Error: There must be two inputs per voxel surface (mask, contrast)."
-			sys.exit()
+		for options in opts.displayvoxel:
+			if len(options) == 2:
+				cmap_array = cmap_array
+				vmin = opts.thresholds[0]
+				vmax = opts.thresholds[1]
+			elif len(options) == 3:
+				cmap_array = get_cmap_array(str(options[2]), 0)
+				vmin = opts.thresholds[0]
+				vmax = opts.thresholds[1]
+			elif len(options) == 5:
+				cmap_array = get_cmap_array(str(options[2]), 0)
+				vmin = float(options[3])
+				vmax = float(options[4])
+			else:
+				print "Error -dv must have 2, 3 or 5 inputs"
+				sys.exit()
 
-		for j in range(int(len(opts.displayvoxel)/2)):
-			c_mask = opts.displayvoxel[0 + int(j*2)]
-			c_contrast = opts.displayvoxel[1 + int(j*2)]
+			c_mask = options[0]
+			c_contrast = options[1]
 
 			start = position_array[c_mask]
 			end = position_array[c_mask+1]
@@ -446,42 +469,40 @@ def run(opts):
 
 			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
 				scalars = scalar_data, 
-				vmin = opts.thresholds[0],
-				vmax = opts.thresholds[1],
+				vmin = vmin,
+				vmax = vmax,
 				name = maskname_array[c_mask])
 			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
 	if opts.importvoxelcontour:
-		for inputs in range(len(opts.importvoxelcontour)):
-			ivc_options = opts.importvoxelcontour[inputs]
-			# defaults
-			vol_opacity = 0.7
-			num_contours = 20
-			if len(ivc_options) == 3:
+		vol_opacity = 0.7
+		num_contours = 20
+		for options in opts.importvoxelcontour:
+			if len(options) == 3:
 				vol_cmap_array = get_cmap_array(opts.lookuptable[0], 0)
-			elif len(ivc_options) == 4:
-				vol_cmap_array = get_cmap_array(ivc_options[3], 0)
-			elif len(ivc_options) == 5:
-				vol_cmap_array = get_cmap_array(ivc_options[3], 0)
-				vol_opacity = float(ivc_options[4])
-			elif len(ivc_options) == 6:
-				vol_cmap_array = get_cmap_array(ivc_options[3], 0)
-				vol_opacity = float(ivc_options[4])
-				num_contours = int(ivc_options[5])
+			elif len(options) == 4:
+				vol_cmap_array = get_cmap_array(options[3], 0)
+			elif len(options) == 5:
+				vol_cmap_array = get_cmap_array(options[3], 0)
+				vol_opacity = float(options[4])
+			elif len(options) == 6:
+				vol_cmap_array = get_cmap_array(options[3], 0)
+				vol_opacity = float(options[4])
+				num_contours = int(options[5])
 			else:
 				print "Error -ivc must have three to six inputs (image, low threshold, high threshold, lut, opacity, # contours)"
 				sys.exit()
-			invol = nib.as_closest_canonical(nib.load(str(ivc_options[0])))
+			invol = nib.as_closest_canonical(nib.load(str(options[0])))
 			data = check_byteorder(invol.get_data())
 
 			surf = apply_affine_to_contour3d(data, invol.affine,
-				lthresh = float(ivc_options[1]),
-				hthresh = float(ivc_options[2]),
-				name = os.path.basename(str(ivc_options[0])),
+				lthresh = float(options[1]),
+				hthresh = float(options[2]),
+				name = os.path.basename(str(options[0])),
 				contours = num_contours,
 				opacity = vol_opacity)
-			surf.contour.minimum_contour = float(ivc_options[1])
+			surf.contour.minimum_contour = float(options[1])
 			surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
 
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1

@@ -49,47 +49,32 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		type = str,
 		metavar = 'str')
 	group = ap.add_mutually_exclusive_group(required=True)
-	group.add_argument("-ivb", "--importvoxelbase",
-		help = "[Required] Base overlay. Input {img | lut | low thr| high thr }", 
+	group.add_argument("-iv", "--importvoxelimage",
+		help = "Input -iv for each image. The image order depends on the input order. Required: (Image | LUT). Optional: (Lower threshold | high threshold). E.g., -iv MNI_T1_1mm_brain.nii.gz binary_r -iv stats.nii.gz tm-sunset_r .95 1 -iv negstats.nii.gz tm-breeze_r .95 1", 
 		nargs = '+',
 		type = str,
-		metavar = '*')
-	ap.add_argument("-iv1", "--importvoxel1",
-		help = "[Optional] First overlay. Input {img | lut | low thr| high thr }", 
-		nargs = '+',
-		type = str,
-		metavar = '*')
-	ap.add_argument("-iv2", "--importvoxel2",
-		help = "[Optional] Second overlay. Input {img | lut | low thr| high thr }", 
-		nargs = '+',
-		type = str,
+		action = 'append',
 		metavar = '*')
 	ap.add_argument("-imo", "--addmaskoutline",
-		help = "Import a volume, binarize it, and paint its outline on each png file. Input volume and lower threshold",
+		help = "Import a volume, binarize it, and paint its outline on each png file. Input volume, and optionally the lower threshold.",
 		nargs = '+',
 		metavar = ['img','lower_threshold'])
-	ap.add_argument("-snb", "--slicenumberbase",
-		help = "[Optional] If base image is 4D, select the slice number (starting at 0)", 
-		nargs = 1,
-		type = int,
-		metavar = 'int')
-	ap.add_argument("-sn1", "--slicenumber1",
-		help = "[Optional] If base image is 4D, select the slice number (starting at 0)", 
-		nargs = 1,
-		type = int,
-		metavar = 'int')
-	ap.add_argument("-sn2", "--slicenumber2",
-		help = "[Optional] If base image is 4D, select the slice number (starting at 0)", 
-		nargs = 1,
+	ap.add_argument("-sn", "--slicenumber",
+		help = "[Optional] Select the slice number for every imported voxel image (starting at 0). The number of inputs must match '-iv's. If the image is 3D, use 0. E.g., -sn 0 0 4", 
+		nargs = '+',
 		type = int,
 		metavar = 'int')
 	ap.add_argument("--sign",
-		help = "Set the sign (direction of effect) for input volume. Default = %(default)s. e.g., --sign 1 -1 1", 
-		nargs = 3,
+		help = "Set the sign (direction of effect) for input volume. The number of inputs must match '-iv's. E.g., --sign 1 1 -1", 
+		nargs = '+',
 		type = int,
 		choices = [1,-1],
-		default = [1,1,1],
-		metavar = 'int')
+		metavar = 'INT')
+	ap.add_argument("--alpha",
+		help = "Set the alpha (transparency) for input volume ranging from 0 to 1. The number of inputs must match '-iv's. E.g., --alpha 1 0.5 1", 
+		nargs = '+',
+		type = float,
+		metavar = 'FLOAT')
 	ap.add_argument("-ns", "--numslices",
 		help = "The number of slices. Default = %(default)s", 
 		nargs = 1,
@@ -128,7 +113,7 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		metavar = 'float')
 
 	group.add_argument("--plotluts",
-		help = "Plots the avalable lookup tables, and exits.",
+		help = "Plots the avalable lookup tables (LUT), and exits. Note, all LUTs can be reversed by adding '_r' after the name. For exaple, tm-storm_r is the reverse of the LUT tm-storm.",
 		action = 'store_true')
 	ap.add_argument('-v', '--version', 
 		action = 'version', 
@@ -141,7 +126,7 @@ def run(opts):
 		display_matplotlib_luts()
 		sys.exit()
 
-	if opts.importvoxelbase:
+	if opts.importvoxelimage:
 		if opts.outputname is None:
 			print "Output name is required"
 			sys.exit()
@@ -164,124 +149,85 @@ def run(opts):
 		else:
 			threshtype = 'zscore'
 
-		imgname = opts.importvoxelbase[0]
-		invol = nib.as_closest_canonical(nib.load(imgname))
-		c_map = get_cmap_array(opts.importvoxelbase[1], 0)
+		surf = []
 		numslices = opts.numslices[0]
 		numpixels = opts.slicesize[0]
-		data = check_byteorder(invol.get_data()) * opts.sign[0]
-		if opts.slicenumberbase:
-			data = data[:,:,:,opts.slicenumberbase[0]]
-#		data = data[::int(np.sign(invol.affine[0,0])),::int(np.sign(invol.affine[1,1])),::int(np.sign(invol.affine[2,2]))] # why??????
 
-		if len(opts.importvoxelbase) == 4:
-			lthres = float(opts.importvoxelbase[2])
-			uthres = float(opts.importvoxelbase[3])
-		elif len(opts.importvoxelbase) == 2:
-			lthres, uthres = autothreshold(data, threshtype, opts.zthresh[0])
-			print "%s Lower Threshold = %1.2f" % (os.path.basename(opts.importvoxelbase[0]), lthres)
-			print "%s Upper Threshold = %1.2f" % (os.path.basename(opts.importvoxelbase[0]), uthres)
-		else:
-			print "Error"
+		for i, opts_vi in enumerate(opts.importvoxelimage):
 
-		x_rng,  y_rng, z_rng = nonempty_coordinate_range(data, invol.affine)
-		scalar_field = apply_affine_to_scalar_field(data, invol.affine)
-
-		surfb = mlab.pipeline.image_plane_widget(scalar_field,
-			plane_orientation = 'x_axes',
-			vmin = lthres,
-			vmax = uthres,
-			plane_opacity = 0,
-			name = "X_%s" % imgname,
-			slice_index = int(data.shape[1]/2))
-		surfb.module_manager.scalar_lut_manager.lut.table = c_map
-		surfb.ipw.reslice_interpolate = str(opts.interpolation[0])
-		surfb.scene.x_plus_view()
-		rl_cmap = colors.ListedColormap(c_map[:,0:3]/255)
-		write_colorbar(np.array((lthres,uthres)), rl_cmap, opts.importvoxelbase[1])
-		os.system("mv %s_colorbar.png 0_colorbar.png" % opts.importvoxelbase[1])
-
-		if opts.importvoxel1:
-
-			imgname = opts.importvoxel1[0]
+			# reorientate input volume
+			imgname = opts_vi[0]
 			invol = nib.as_closest_canonical(nib.load(imgname))
-			c_map = get_cmap_array(opts.importvoxel1[1], 0)
-			data = check_byteorder(invol.get_data()) * opts.sign[1]
-			if opts.slicenumber1:
-				data = data[:,:,:,opts.slicenumber1[0]]
 
-			if len(opts.importvoxel1) == 4:
-				lthres = float(opts.importvoxel1[2])
-				uthres = float(opts.importvoxel1[3])
-			elif len(opts.importvoxel1) == 2:
-				lthres, uthres = autothreshold(data, threshtype, opts.zthresh[0])
-				print "%s Lower Threshold = %1.2f" % (os.path.basename(opts.importvoxel1[0]), lthres)
-				print "%s Upper Threshold = %1.2f" % (os.path.basename(opts.importvoxel1[0]), uthres)
+			if opts.alpha is not None:
+				if len(opts.alpha) == len(opts.importvoxelimage):
+					c_map = get_cmap_array(opts_vi[1], background_alpha = 0, image_alpha = float(opts.alpha[i]))
+				else:
+					print "Error: the number of -iv (%d) must match the length of --alpha (%d)" % (len(opts.importvoxelimage),len(opts.alpha))
+					quit()
 			else:
-				print "Error"
+				c_map = get_cmap_array(opts_vi[1], background_alpha = 0)
 
+			# Load and check data
+			data = check_byteorder(invol.get_data())
+			if opts.sign is not None:
+				if len(opts.sign) == len(opts.importvoxelimage):
+					data *= int(opts.sign[i])
+				else:
+					print "Error: the number of -iv (%d) must match the length of --sign (%d)" % (len(opts.importvoxelimage),len(opts.sign))
+					quit()
+			if opts.slicenumber is not None:
+				if len(opts.slicenumber) == len(opts.importvoxelimage):
+					if data.ndim == 4:
+						data *= int(opts.slicenumber[i])
+				else:
+					print "Error: the number of -iv (%d) must match the length of -sn (%d)" % (len(opts.importvoxelimage),len(opts.slicenumber))
+					quit()
+			else:
+				if data.ndim == 4:
+					print "Detected %s as a 4D volume. Extracting the first volume." % imgname
+					data = data[:,:,:,0]
+
+			# Set thresholds
+			if len(opts_vi) == 4:
+				lthres = float(opts_vi[2])
+				uthres = float(opts_vi[3])
+			elif len(opts_vi) == 2:
+				lthres, uthres = autothreshold(data, threshtype, opts.zthresh[0])
+				print "%s Lower Threshold = %1.2f" % (os.path.basename(opts_vi[0]), lthres)
+				print "%s Upper Threshold = %1.2f" % (os.path.basename(opts_vi[0]), uthres)
+			else:
+				print "Error: there must be two or four inputs with -iv"
+				quit()
+
+			# Create surfaces
+			x_rng, y_rng, z_rng = nonempty_coordinate_range(data, invol.affine)
+			if i == 0:
+				x_space = np.round(np.linspace(x_rng[0]+5, x_rng[1]-5, numslices))
+				y_space = np.round(np.linspace(y_rng[0]+5, y_rng[1]-5, numslices))
+				z_space = np.round(np.linspace(x_rng[0]+1, x_rng[1]-1, numslices))
 			scalar_field = apply_affine_to_scalar_field(data, invol.affine)
-			surf1 = mlab.pipeline.image_plane_widget(scalar_field,
-				plane_orientation='x_axes',
+
+			surf.append(mlab.pipeline.image_plane_widget(scalar_field,
+				plane_orientation = 'x_axes',
 				vmin = lthres,
 				vmax = uthres,
 				plane_opacity = 0,
 				name = "X_%s" % imgname,
-				slice_index = int(data.shape[1]/2))
-			surf1.module_manager.scalar_lut_manager.lut.table = c_map
-			surf1.ipw.reslice_interpolate = str(opts.interpolation[0])
-			surf1.scene.x_plus_view()
+				slice_index = int(data.shape[1]/2)))
+			surf[i].module_manager.scalar_lut_manager.lut.table = c_map
+			surf[i].ipw.reslice_interpolate = str(opts.interpolation[0])
+			surf[i].scene.x_plus_view()
 			rl_cmap = colors.ListedColormap(c_map[:,0:3]/255)
-			write_colorbar(np.array((lthres,uthres)), rl_cmap, opts.importvoxel1[1])
-			os.system("mv %s_colorbar.png 1_colorbar.png" % opts.importvoxel1[1])
-
-		if opts.importvoxel2:
-
-			imgname = opts.importvoxel2[0]
-			invol = nib.as_closest_canonical(nib.load(imgname))
-			c_map = get_cmap_array(opts.importvoxel2[1], 0)
-			data = check_byteorder(invol.get_data()) * opts.sign[2]
-			if opts.slicenumber2:
-				data = data[:,:,:,opts.slicenumber2[0]]
-
-			if len(opts.importvoxel2) == 4:
-				lthres = float(opts.importvoxel2[2])
-				uthres = float(opts.importvoxel2[3])
-			elif len(opts.importvoxel2) == 2:
-				lthres, uthres = autothreshold(data, threshtype, opts.zthresh[0])
-				print "%s Lower Threshold = %1.2f" % (os.path.basename(opts.importvoxel2[0]), lthres)
-				print "%s Upper Threshold = %1.2f" % (os.path.basename(opts.importvoxel2[0]), uthres)
-			else:
-				print "Error"
-
-			scalar_field = apply_affine_to_scalar_field(data, invol.affine)
-			surf2 = mlab.pipeline.image_plane_widget(scalar_field,
-				plane_orientation='x_axes',
-				vmin = lthres,
-				vmax = uthres,
-				plane_opacity = 0,
-				name = "X_%s" % imgname,
-				slice_index = int(data.shape[1]/2))
-			surf2.module_manager.scalar_lut_manager.lut.table = c_map
-			surf2.ipw.reslice_interpolate = str(opts.interpolation[0])
-			surf2.scene.x_plus_view()
-			rl_cmap = colors.ListedColormap(c_map[:,0:3]/255)
-			write_colorbar(np.array((lthres,uthres)), rl_cmap, opts.importvoxel2[1])
-			os.system("mv %s_colorbar.png 2_colorbar.png" % opts.importvoxel2[1])
-
-
+			write_colorbar(np.array((lthres,uthres)), rl_cmap, opts_vi[1])
+			os.system("mv %s_colorbar.png %d_colorbar.png" % (opts_vi[1], i))
 
 		count = 0
-		for xval in np.round(np.linspace(x_rng[0]+1, x_rng[1]-5, numslices)):
-			surfb.ipw.slice_position = xval
-			if opts.importvoxel1:
-				surf1.ipw.slice_position = xval
-				surf1.scene.x_plus_view()
-			if opts.importvoxel2:
-				surf2.ipw.slice_position = xval
-				surf2.scene.x_plus_view()
-			surfb.scene.x_plus_view()
-			surfb.scene.background = (0,0,0)
+		for xval in x_space:
+			for i in range(len(opts.importvoxelimage)):
+				surf[i].ipw.slice_position = xval
+				surf[i].scene.x_plus_view()
+			surf[0].scene.background = (0,0,0)
 			mlab.savefig('X_Slice_%d.png' % count, size = (numpixels,numpixels))
 			correct_image('X_Slice_%d.png' % count)
 			if opts.hardcodecoordinates:
@@ -289,19 +235,13 @@ def run(opts):
 			count += 1
 
 		count = 0
-		for yval in np.round(np.linspace(y_rng[0]+1, y_rng[1]-1, numslices)):
-			surfb.ipw.plane_orientation = 'y_axes'
-			surfb.ipw.slice_position = yval
-			if opts.importvoxel1:
-				surf1.ipw.plane_orientation = 'y_axes'
-				surf1.ipw.slice_position = yval
-				surf1.scene.y_plus_view()
-			if opts.importvoxel2:
-				surf2.ipw.plane_orientation = 'y_axes'
-				surf2.ipw.slice_position = yval
-				surf2.scene.y_plus_view()
-			surfb.scene.y_plus_view()
-			surfb.scene.background = (0,0,0)
+		for yval in y_space:
+			for i in range(len(opts.importvoxelimage)):
+				surf[i].ipw.plane_orientation = 'y_axes'
+				surf[i].ipw.slice_position = yval
+				surf[i].scene.y_plus_view()
+			surf[0].scene.y_plus_view()
+			surf[0].scene.background = (0,0,0)
 			mlab.savefig('Y_Slice_%d.png' % count, size = (numpixels,numpixels))
 			correct_image('Y_Slice_%d.png' % count, rotate = 90, flip = True)
 			if opts.hardcodecoordinates:
@@ -309,19 +249,13 @@ def run(opts):
 			count += 1
 
 		count = 0
-		for zval in np.round(np.linspace(x_rng[0]+1, x_rng[1]-1, numslices)):
-			surfb.ipw.plane_orientation = 'z_axes'
-			surfb.ipw.slice_position = zval
-			if opts.importvoxel1:
-				surf1.ipw.plane_orientation = 'z_axes'
-				surf1.ipw.slice_position = zval
-				surf1.scene.z_plus_view()
-			if opts.importvoxel2:
-				surf2.ipw.plane_orientation = 'z_axes'
-				surf2.ipw.slice_position = zval
-				surf2.scene.z_plus_view()
-			surfb.scene.z_plus_view()
-			surfb.scene.background = (0,0,0)
+		for zval in z_space:
+			for i in range(len(opts.importvoxelimage)):
+				surf[i].ipw.plane_orientation = 'z_axes'
+				surf[i].ipw.slice_position = zval
+				surf[i].scene.z_plus_view()
+			surf[0].scene.z_plus_view()
+			surf[0].scene.background = (0,0,0)
 			mlab.savefig('Z_Slice_%d.png' % count, size = (numpixels,numpixels))
 			correct_image('Z_Slice_%d.png' % count)
 			if opts.hardcodecoordinates:
@@ -365,7 +299,7 @@ def run(opts):
 		mask.scene.x_plus_view()
 
 		count = 0
-		for xval in np.round(np.linspace(x_rng[0]+1, x_rng[1]-5, numslices)):
+		for xval in x_space:
 			mask.ipw.slice_position = xval
 			mask.scene.x_plus_view()
 			mask.scene.background = (0,0,0)
@@ -374,7 +308,7 @@ def run(opts):
 			draw_outline('X_Slice_%d.png' % count,'X_mask_%d.png' % count)
 			count += 1
 		count = 0
-		for yval in np.round(np.linspace(y_rng[0]+1, y_rng[1]-1, numslices)):
+		for yval in y_space:
 			mask.ipw.plane_orientation = 'y_axes'
 			mask.ipw.slice_position = yval
 			mask.scene.y_plus_view()
@@ -384,7 +318,7 @@ def run(opts):
 			draw_outline('Y_Slice_%d.png' % count,'Y_mask_%d.png' % count)
 			count += 1
 		count = 0
-		for zval in np.round(np.linspace(x_rng[0]+1, x_rng[1]-1, numslices)):
+		for zval in z_space:
 			mask.ipw.plane_orientation = 'z_axes'
 			mask.ipw.slice_position = zval
 			mask.scene.z_plus_view()
@@ -394,9 +328,7 @@ def run(opts):
 			draw_outline('Z_Slice_%d.png' % count,'Z_mask_%d.png' % count)
 			count += 1
 
-	coordinates = np.stack((np.round(np.linspace(x_rng[0]+1, x_rng[1]-5,numslices)), 
-		np.round(np.linspace(y_rng[0]+1, y_rng[1]-1, numslices)),
-		np.round(np.linspace(z_rng[0]+1, z_rng[1]-1, numslices)))).T
+	coordinates = np.stack((x_space, y_space, z_space)).T
 	concate_images('X_Slice', numslices,
 		clean = cleanup,
 		numpixels = numpixels)
@@ -413,8 +345,7 @@ def run(opts):
 
 	make_slice_html("%s.html" % opts.outputname[0], 
 		coordinates,
-		opts.importvoxel1,
-		opts.importvoxel2,
+		opts.importvoxelimage,
 		write_coordinates = write_coordinates)
 
 	write_dict(".%s.html/settings" % opts.outputname[0], opts)

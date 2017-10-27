@@ -223,41 +223,42 @@ def display_matplotlib_luts():
 
 
 # Get RGBA colormap [uint8, uint8, uint8, uint8]
-def get_cmap_array(lut, alpha = 255, zero_lower = True, zero_upper = False, base_color = [227,218,201,0], c_reverse = False):
-	base_color[3] = alpha
+def get_cmap_array(lut, background_alpha = 255, image_alpha = 1.0, zero_lower = True, zero_upper = False, base_color = [227,218,201,0], c_reverse = False):
+	base_color[3] = background_alpha
 	if lut.endswith('_r'):
 		c_reverse = lut.endswith('_r')
 		lut = lut[:-2]
 	# make custom look-up table
 	if (str(lut) == 'r-y') or (str(lut) == 'red-yellow'):
-		cmap_array = np.column_stack((linear_cm([255,0,0],[255,255,0]), np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([255,0,0],[255,255,0]), (255 * np.ones(256) * image_alpha)))
 	elif (str(lut) == 'b-lb') or (str(lut) == 'blue-lightblue'):
-		cmap_array = np.column_stack((linear_cm([0,0,255],[0,255,255]), np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([0,0,255],[0,255,255]), (255 * np.ones(256) * image_alpha)))
 	elif (str(lut) == 'g-lg') or (str(lut) == 'green-lightgreen'):
-		cmap_array = np.column_stack((linear_cm([0,128,0],[0,255,0]), np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([0,128,0],[0,255,0]), (255 * np.ones(256) * image_alpha)))
 	elif str(lut) == 'tm-breeze':
-		cmap_array = np.column_stack((linear_cm([199,233,180],[65,182,196],[37,52,148]), np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([199,233,180],[65,182,196],[37,52,148]), (255 * np.ones(256) * image_alpha)))
 	elif str(lut) == 'tm-sunset':
-		cmap_array = np.column_stack((linear_cm([255,255,51],[255,128,0],[204,0,0]), np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([255,255,51],[255,128,0],[204,0,0]), (255 * np.ones(256) * image_alpha)))
 	elif str(lut) == 'tm-broccoli':
-		cmap_array = np.column_stack((linear_cm([204,255,153],[76,153,0],[0,102,0]), np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([204,255,153],[76,153,0],[0,102,0]), (255 * np.ones(256) * image_alpha)))
 	elif str(lut) == 'tm-octopus':
-		cmap_array = np.column_stack((linear_cm([255,204,204],[255,0,255],[102,0,0]), np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([255,204,204],[255,0,255],[102,0,0]), (255 * np.ones(256) * image_alpha)))
 	elif str(lut) == 'tm-storm':
-		cmap_array = np.column_stack((linear_cm([0,153,0],[255,255,0],[204,0,0]), np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([0,153,0],[255,255,0],[204,0,0]), (255 * np.ones(256) * image_alpha)))
 	elif str(lut) == 'tm-flow':
-		cmap_array = np.column_stack((log_cm([51,51,255],[255,0,0],[255,255,255]), np.ones(256)*255))
+		cmap_array = np.column_stack((log_cm([51,51,255],[255,0,0],[255,255,255]), (255 * np.ones(256) * image_alpha)))
 	elif str(lut) == 'tm-logBluGry':
-		cmap_array = np.column_stack((log_cm([0,0,51],[0,0,255],[255,255,255]), np.ones(256)*255))
+		cmap_array = np.column_stack((log_cm([0,0,51],[0,0,255],[255,255,255]), (255 * np.ones(256) * image_alpha)))
 	elif str(lut) == 'tm-logRedYel':
-		cmap_array = np.column_stack((log_cm([102,0,0],[200,0,0],[255,255,0]), np.ones(256)*255))
+		cmap_array = np.column_stack((log_cm([102,0,0],[200,0,0],[255,255,0]),(255 * np.ones(256) * image_alpha)))
 	elif str(lut) == 'tm-erfRGB':
-		cmap_array = np.column_stack((erf_cm([255,0,0],[0,255,0], [0,0,255]), np.ones(256)*255))
+		cmap_array = np.column_stack((erf_cm([255,0,0],[0,255,0], [0,0,255]), (255 * np.ones(256) * image_alpha)))
 	elif str(lut) == 'tm-white':
-		cmap_array = np.column_stack((linear_cm([255,255,255],[255,255,255]), np.ones(256)*255))
+		cmap_array = np.column_stack((linear_cm([255,255,255],[255,255,255]), (255 * np.ones(256) * image_alpha)))
 	else:
 		try:
 			cmap_array = eval('plt.cm.%s(np.arange(256))' % lut)
+			cmap_array[:,3] = cmap_array[:,3] = image_alpha
 		except:
 			print "Error: Lookup table '%s' is not recognized." % lut
 			print "The lookup table can be red-yellow (r_y), blue-lightblue (b_lb) or any matplotlib colorschemes (https://matplotlib.org/examples/color/colormaps_reference.html)"
@@ -377,7 +378,7 @@ def autothreshold(data, threshold_type = 'otsu', z = 2.3264):
 
 
 # makes a webpage of slices
-def make_slice_html(outname, coordinates, iv1, iv2, write_coordinates = True):
+def make_slice_html(outname, coordinates, iv, write_coordinates = True):
 	if not os.path.exists(".%s" % outname):
 		os.mkdir(".%s" % outname)
 	os.system("mv ?_Slices.png .%s/" % outname)
@@ -426,16 +427,9 @@ def make_slice_html(outname, coordinates, iv1, iv2, write_coordinates = True):
 		o.write("    </a>\n")
 		o.write("    <h1> Color Bar(s) </h1>\n")
 		o.write("    <ul>\n")
-		o.write("        <a href='.%s/0_colorbar.png'>\n" % outname)
-		o.write("        <li><img src='.%s/0_colorbar.png' width='auto' height='200'></li>\n" % outname)
-		o.write("        </a>\n")
-		if iv1 is not None:
-			o.write("        <a href='.%s/1_colorbar.png'>\n" % outname)
-			o.write("        <li><img src='.%s/1_colorbar.png' width='auto' height='200'></li>\n" % outname)
-			o.write("        </a>\n")
-		if iv2 is not None:
-			o.write("        <a href='.%s/2_colorbar.png'>\n" % outname)
-			o.write("        <li><img src='.%s/2_colorbar.png' width='auto' height='200'></li>\n" % outname)
+		for i in range(len(iv)):
+			o.write("        <a href='.%s/%d_colorbar.png'>\n" % (outname, i))
+			o.write("        <li><img src='.%s/%d_colorbar.png' width='auto' height='200'></li>\n" % (outname, i))
 			o.write("        </a>\n")
 		o.write("    </ul>\n")
 		o.write("    <a href='.%s/settings'>\n" % outname)
