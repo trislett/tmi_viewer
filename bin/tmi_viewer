@@ -42,11 +42,8 @@ except:
 
 
 DESCRIPTION = """
-Display surfaces and volumes from a tmi file.
-
-This script relies on Mayavi. If you use it please cite:
-
-Ramachandran, P. and Varoquaux, G., `Mayavi: 3D Visualization of Scientific Data` IEEE Computing in Science & Engineering, 13 (2), pp. 40-51 (2011)
+tmi_viewer: Displays multimodal neuroimaging data (surfaces and volumes) in the same space from a TMI file (although TMI files are not required). This program relies on Mayavi, and setting can changed using the Mayavi interactive session.
+If you use it please cite: Ramachandran, P. and Varoquaux, G., `Mayavi: 3D Visualization of Scientific Data` IEEE Computing in Science & Engineering, 13 (2), pp. 40-51 (2011).
 """
 
 def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
@@ -64,27 +61,25 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 
 	# images from tmi
 	ap.add_argument("-d", "--display",
-		help="""
-			Select which object to display. The (1) mask, (2) surface, (3) contrast must be entered as integers (check values with -oh). 
-			Multiple objects can be displayed. Optional inputs: (4) lookup-table (5) Low threshold, (6) High threshold""",
+		help="Display a surface with a scalar. The mask, contrast, and surface are required (check values with -oh or -os). Format: -d {0 mask} {1 contrast} {2 surface} {3 LUT} {4 vmin} {5 vmax}",
 		nargs = '+',
 		action = 'append',
-		metavar = 'int')
+		metavar = '*')
 	ap.add_argument("-dv", "--displayvoxel",
-		help = "Display a volume as a surface. The mask and contrast must be entered as integers (check values with -oh).", 
+		help = "Display a volume as a surface and scalar. The mask and contrast are required (check values with -oh or -os). Format: -dv {0 mask} {1 contrast} {2 LUT} {3 vmin} {4 vmax}", 
 		nargs = '+',
-		type = int,
-		metavar = 'int')
+		action = 'append',
+		metavar = '*')
 	ap.add_argument("-dvsf", "--displayvoxelscalarfield",
-		help = "Display a volume an x and y plane scalar field. The mask and contrast must be entered as integers (check values with -oh).", 
+		help = "Display a volume on as scalar field(s). Default [x, y] plane (can be changed with -sfa). The mask and contrast are required (check values with -oh or -os). Format: -dvsf {0 mask} {1 contrast} {2 LUT} {3 vmin} {4 vmax}", 
 		nargs = '+',
-		type = int,
-		metavar = 'int')
+		action = 'append',
+		metavar = '*')
 	ap.add_argument("-dvc", "--displayvoxelcontour",
-		help = "Display a volume as a 3D contour. The mask and contrast must be entered as integers (check values with -oh).", 
+		help = "Display a volume as a 3D contour. The mask and contrast are required (check values with -oh or -os). Format: -dvc {0 mask} {1 contrast} {2 LUT} {3 vmin} {4 vmax} {5 Contour_Opacity} {6 Number_Contours}", 
 		nargs = '+',
-		type = int,
-		metavar = 'int')
+		action = 'append',
+		metavar = '*')
 	ap.add_argument("-ds", "--displaysurface",
 		help = "Display a surface without a scalar (i.e., just the surface).", 
 		nargs = '+',
@@ -93,15 +88,13 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 
 	# settings
 	ap.add_argument("-lut", "--lookuptable",
-		help = """
-			Set the color map to display. The lookuptable can be red-yellow (r-y), blue-lightblue (b-lb), green-lightgreen (g-lg) or any 
-			matplotlib colorschemes. Any lut can be reverse by appending _r (e.g. -lut red-yellow_r). Use --plotluts to see the available lookuptables""", 
+		help = """ Set the default color map to display. Use --plotluts to see the available lookup-tables (LUTs). Any LUT can be reverse by appending _r (e.g. -lut red-yellow_r). """, 
 		type = str,
 		default = ['r-y'],
 		nargs = 1)
 
 	ap.add_argument("-t", "--thresholds",
-		help = "Set lower and upper thresholds. Default is: %(default)s", 
+		help = "Set the default lower (vmin) and upper (vmax) thresholds. Defaults are: %(default)s", 
 		default=[.95,1],
 		type = float,
 		nargs = 2)
@@ -118,53 +111,32 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 
 	# external
 	ap.add_argument("-ifs", "--importfreesurfer",
-		help = """
-			Import a freesurfer surface (use 'tm_multimodal create-tmi' to add other surface types). 
-			e.g., -ifs $SUBJECT_DIR/fsaverage/surf/lh.midthickness""", 
+		help = "Import a freesurfer surface (use 'tm_multimodal create-tmi' to add other surface types). e.g., -ifs $SUBJECT_DIR/fsaverage/surf/?h.midthickness", 
 		nargs = '+',
 		type = str,
 		metavar = 'str')
 	ap.add_argument("-fsmgh", "--importfreesurfermgh",
-		help = """
-			Import a freesurfer scalar (mgh) file(s) that match the input surface(s). The number of inputs 
-			must match the -ifs inputs. e.g., -ifs ?h.midthickness -fsmgh ?h_results_file.mgh
-			""", 
+		help = "Import a freesurfer scalar (mgh) file(s) that match the input surface(s). The number of inputs must match the -ifs inputs. e.g., -ifs ?h.midthickness -fsmgh ?h_results_file.mgh", 
 		nargs = '+',
 		type = str,
 		metavar = 'str')
 	ap.add_argument("-iv", "--importvolume",
-		help = "Import volume(s) (nifti or minc). e.g., -iv mean_FA_skeleton_mask.nii.gz", 
-		nargs = '+',
-		type = str,
-		metavar = 'str')
-	ap.add_argument("-ivb", "--binarizedimportvolume",
-		help = "Import volume(s) (nifti or minc) and set all non-zero values to one. e.g., -ivb mean_FA_skeleton_mask.nii.gz", 
-		nargs = '+',
-		type = str,
-		metavar = 'str')
-	ap.add_argument("-ivt", "--thresholdimportvolume",
-		help = """
-			Import a volume (nifti or minc) and apply a lower and upper threshold. e.g., -ivt mean_FA_skeleton_mask.nii.gz  0.2 0.8. 
-			Only one volume can be added. A lookup table can be specified as the forth argument (the default is the -lut option).
-			""", 
-		nargs = '*',
-		metavar = ['str|float|float|str'])
-	ap.add_argument("-ivsf", "--importvoxelscalarfield",
-		help = """
-			Import a volume display it as an default [x, y] plane scalar field. e.g., -ivsf mean_FA_skeleton_mask.nii.gz  0.2 0.8
-			Only one volume can be added. A lookup table can be specified as the forth argument (the default is the -lut option).""", 
-		nargs = '*',
-		metavar = ['str|float|float|str'])
-	ap.add_argument("-ivc", "--importvoxelcontour",
-		help = """
-			Import a volume display it as an default [x, y] plane scalar field. e.g., -ivsf mean_FA_skeleton_mask.nii.gz 0.2 0.8
-			Only one volume can be added. Optional arguments: (4) lookup table (the default is the -lut option), (5) opacity (default 
-			is 0.7), (6) Number of contours (default is 20)""",
+		help = "Import a volume and display it as a surface and scalar. The import volume (Nifti, Minc, MGH) is required. Format: -iv {0 image} {1 LUT} {2 vmin} {3 vmax} {4 opacity}", 
 		nargs = '*',
 		action = 'append',
-		metavar = ['str|float|float|str'])
+		metavar = '*')
+	ap.add_argument("-ivsf", "--importvoxelscalarfield",
+		help = "Import a volume and display it as scalar field(s). Default [x, y] plane (can be changed with -sfa). The import volume (Nifti, Minc, MGH) is required. Format: -ivsf {0 image} {1 LUT} {2 vmin} {3 vmax}", 
+		nargs = '+',
+		action = 'append',
+		metavar = '*')
+	ap.add_argument("-ivc", "--importvoxelcontour",
+		help = "Import a volume display it as 3D contourd. The import volume (Nifti, Minc, MGH) is required. Format: -ivc {0 image} {1 LUT} {2 vmin} {3 vmax} {4 Contour_Opacity} {5 Number_Contours}",
+		nargs = '*',
+		action = 'append',
+		metavar = '*')
 	ap.add_argument("-sfa", "--scalarfieldaxis",
-		help = "Select axis/axes for scalar field. Only  {X, Y, Z} are valid arguements",
+		help = "Select axis/axes for scalar field. Only {X, Y, Z} are valid arguements",
 		nargs = '+',
 		metavar = 'axis')
 	ap.add_argument("-sfo", "--sfplaneopacity",
@@ -194,18 +166,16 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		type = int,
 		metavar = 'int')
 	ap.add_argument("-stype","--smoothingtype",
-		help = """Set type of surface smoothing to use (choices are: %(choices)s). The default is laplacian
-				The Taubin (aka low-pass) filter smooths curves/surfaces without the shrinkage of the laplacian filter.
-				""", 
+		help = "Set type of surface smoothing to use (choices are: %(choices)s). The default is laplacian. The Taubin (aka low-pass) filter smooths curves/surfaces without the shrinkage of the laplacian filter.", 
 		nargs = 1,
 		choices = ['laplacian','taubin'],
 		default = ['laplacian'],
 		metavar = 'str')
 	ap.add_argument("--interpolation",
-		help = "Specify the reslice interpolation (choices are: %(choices)s). The default is nearest_neighbour",
+		help = "Specify the reslice interpolation (choices are: %(choices)s). The default is linear",
 		nargs = 1,
 		choices = ['cubic','linear', 'nearest_neighbour'],
-		default = ['nearest_neighbour'],
+		default = ['linear'],
 		metavar = 'str')
 
 	ap.add_argument("-oh", "--history",
@@ -240,7 +210,7 @@ def run(opts):
 		pointer = 0
 		position_array = [0]
 		for i in range(len(masking_array)):
-			pointer += len(masking_array[i][masking_array[i]==True])
+			pointer += len(masking_array[i][masking_array[i] == True])
 			position_array.append(pointer)
 		del pointer
 
@@ -261,77 +231,32 @@ def run(opts):
 			for j, m in enumerate(maskname_array):
 				start = position_array[j]
 				end = position_array[j+1]
-				print "%d\t%s \t [%1.4f, %1.4f]" % (j, m,
+				print "Mask[%d]\t%s \t [%1.4f, %1.4f]" % (j, m,
 					image_array[0][start:end,i].min(),
 					image_array[0][start:end,i].max())
+		if surfname is not None:
+			print "\n --- Surfaces ---\n"
+			for s, surf in enumerate(surfname):
+				print"Surface[%d]\t%s" % (s,surf) 
 		sys.exit()
 
-
-	# make custom look-up table
-	cmap_array = get_cmap_array(opts.lookuptable[0], float(opts.alpha[0]))
-
-	# load scalar fields first.
-	if opts.importvoxelscalarfield:
-		if len(opts.importvoxelscalarfield) == 3:
-			vol_cmap_array = get_cmap_array(opts.lookuptable[3], 0)
-			vol_opacity = opts.opacity[0]
-		elif len(opts.importvoxelscalarfield) == 4:
-			vol_cmap_array = get_cmap_array(opts.importvoxelscalarfield[3], 0)
-			vol_opacity = opts.opacity[0]
-		elif len(opts.importvoxelscalarfield) == 5:
-			vol_cmap_array = get_cmap_array(opts.importvoxelscalarfield[3], 0)
-			vol_opacity = float(opts.importvoxelscalarfield[4])
-		else:
-			print "Error -ivsf must have three, four or five inputs"
-			sys.exit()
-		invol = nib.as_closest_canonical(nib.load(str(opts.importvoxelscalarfield[0])))
-		data = check_byteorder(invol.get_data())
-
-		scalar_field = apply_affine_to_scalar_field(data, invol.affine)
-
-		if opts.scalarfieldaxis:
-			axis_array = opts.scalarfieldaxis
-		else:
-			axis_array = ['X', 'Y']
-
-		for axis in axis_array:
-			if axis == 'X':
-				orien = 'x_axes'
-			if axis == 'Y':
-				orien = 'y_axes'
-			if axis == 'Z':
-				orien = 'z_axes'
-			surf = mlab.pipeline.image_plane_widget(scalar_field,
-				plane_orientation='%s' % orien,
-				vmin = float(opts.importvoxelscalarfield[1]),
-				vmax = float(opts.importvoxelscalarfield[2]),
-				opacity = vol_opacity,
-				plane_opacity = float(opts.sfplaneopacity[0]),
-				name = "%s_%s" % (axis, os.path.basename(str(opts.importvoxelscalarfield[0]))),
-				slice_index=int(data.shape[0]/2))
-			surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
-			surf.ipw.reslice_interpolate = 'nearest_neighbour'
-		if float(opts.sfplaneopacity[0]) == 1.0:
-			mlab.outline()
-
-	if opts.displayvoxelscalarfield:
-		cmap_array[0] = [227,218,201,0]
-
+	if opts.displayvoxelscalarfield: # -dvsf {0 mask} {1 contrast} {2 LUT} {3 vmin} {4 vmax}
 		for options in opts.displayvoxelscalarfield:
+			vmin = opts.thresholds[0]
+			vmax = opts.thresholds[1]
 			if len(options) == 2:
-				cmap_array = cmap_array
-				vmin = opts.thresholds[0]
-				vmax = opts.thresholds[1]
+				cmap_array = get_cmap_array(opts.lookuptable[0], 0)
 			elif len(options) == 3:
 				cmap_array = get_cmap_array(str(options[2]), 0)
-				vmin = opts.thresholds[0]
-				vmax = opts.thresholds[1]
+			elif len(options) == 4:
+				print "Error: -dvsf theshold option must have minimum and maximum values"
+				sys.exit()
 			elif len(options) == 5:
 				cmap_array = get_cmap_array(str(options[2]), 0)
 				vmin = float(options[3])
 				vmax = float(options[4])
 			else:
-				print "Error -dvsf must have 2, 3 or 5 inputs"
+				print "Error -dvsf must have two to five inputs (-dvsf {0 mask} {1 contrast} {2 LUT} {3 vmin} {4 vmax})"
 				sys.exit()
 
 			c_mask = options[0]
@@ -365,7 +290,6 @@ def run(opts):
 					plane_orientation='%s' % orien,
 					vmin = vmin,
 					vmax = vmax,
-					opacity = opts.opacity[0],
 					plane_opacity = float(opts.sfplaneopacity[0]),
 					name = "%s_%s" % (axis, maskname_array[c_mask]),
 					slice_index=int(scalar_data.shape[0]/2))
@@ -374,31 +298,83 @@ def run(opts):
 			if float(opts.sfplaneopacity[0]) == 1.0:
 				mlab.outline()
 
-	# load surfaces
-	if opts.display:
-		for options in opts.display:
 
-			c_mask = int(options[0])
-			c_surf = int(options[1])
-			c_contrast = int(options[2])
-			
-			if len(options) == 3:
-				surf_cmap_array = cmap_array
-				vmin = opts.thresholds[0]
-				vmax = opts.thresholds[1]
+	# load scalar fields first.
+	if opts.importvoxelscalarfield: # -ivsf {0 image} {1 LUT} {2 vmin} {3 vmax}
+		for options in opts.importvoxelscalarfield:
+			vmin = opts.thresholds[0]
+			vmax = opts.thresholds[1]
+			if len(options) == 1:
+				cmap_array = get_cmap_array(opts.lookuptable[0], 0)
+			elif len(options) == 2:
+				cmap_array = get_cmap_array(str(options[1]), 0)
+			elif len(options) == 3:
+				print "Error: -ivsf theshold option must have minimum and maximum values"
+				sys.exit()
 			elif len(options) == 4:
-				surf_cmap_array = get_cmap_array(str(options[3]), 255)
-				vmin = opts.thresholds[0]
-				vmax = opts.thresholds[1]
+				cmap_array = get_cmap_array(str(options[1]), 0)
+				vmin = float(options[2])
+				vmax = float(options[3])
+			else:
+				print "Error -ivsf must have one to four inputs (-ivsf {0 image} {1 LUT} {2 vmin} {3 vmax})"
+				sys.exit()
+
+			invol = nib.as_closest_canonical(nib.load(str(options[0])))
+			data = check_byteorder(invol.get_data())
+
+			scalar_field = apply_affine_to_scalar_field(data, invol.affine)
+
+			if opts.scalarfieldaxis:
+				axis_array = opts.scalarfieldaxis
+			else:
+				axis_array = ['X', 'Y']
+
+			for axis in axis_array:
+				if axis == 'X':
+					orien = 'x_axes'
+				if axis == 'Y':
+					orien = 'y_axes'
+				if axis == 'Z':
+					orien = 'z_axes'
+				surf = mlab.pipeline.image_plane_widget(scalar_field,
+					plane_orientation='%s' % orien,
+					vmin = vmin,
+					vmax = vmax,
+					plane_opacity = float(opts.sfplaneopacity[0]),
+					name = "%s_%s" % (axis, os.path.basename(str(options[0]))),
+					slice_index=int(data.shape[0]/2))
+				surf.module_manager.scalar_lut_manager.lut.table = cmap_array
+				surf.ipw.reslice_interpolate = opts.interpolation[0]
+			if float(opts.sfplaneopacity[0]) == 1.0:
+				mlab.outline()
+
+
+
+	# load surfaces
+	if opts.display: # -d {0 mask} {1 contrast} {2 surface} {3 LUT} {4 vmin} {5 vmax}
+		for options in opts.display:
+			#defaults
+			vmin = opts.thresholds[0]
+			vmax = opts.thresholds[1]
+			if len(options) == 3:
+				cmap_array = cmap_array
+			elif len(options) == 4:
+				cmap_array = get_cmap_array(str(options[3]), 255)
+			elif len(options) == 5:
+				print "Error: -d theshold option must have minimum and maximum values"
+				sys.exit()
 			elif len(options) == 6:
-				surf_cmap_array = get_cmap_array(str(options[3]), 255)
+				cmap_array = get_cmap_array(str(options[3]), 255)
 				vmin = float(options[4])
 				vmax = float(options[5])
 			else:
-				print "Error -d must have 3, 4 or 6 inputs"
+				print "Error -d must have three to six inputs (-d {0 mask} {1 contrast} {2 surface} {3 LUT} {4 vmin} {5 vmax})"
 				sys.exit()
-
 			# display the surfaces
+			c_mask = int(options[0])
+			c_contrast = int(options[1])
+			c_surf = int(options[2])
+
 			start = position_array[c_mask]
 			end = position_array[c_mask+1]
 
@@ -421,32 +397,31 @@ def run(opts):
 				vmin = vmin,
 				vmax = vmax,
 				name = maskname_array[c_mask])
-			surf.module_manager.scalar_lut_manager.lut.table = surf_cmap_array
+			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
-	if opts.displayvoxel:
-
-		cmap_array[0] = [227,218,201,0]
-
+	if opts.displayvoxel: # -dv {0 mask} {1 contrast} {2 LUT} {3 vmin} {4 vmax}
 		for options in opts.displayvoxel:
+			# defaults
+			vmin = opts.thresholds[0]
+			vmax = opts.thresholds[1]
 			if len(options) == 2:
-				cmap_array = cmap_array
-				vmin = opts.thresholds[0]
-				vmax = opts.thresholds[1]
+				cmap_array = get_cmap_array(opts.lookuptable[0], 0)
 			elif len(options) == 3:
 				cmap_array = get_cmap_array(str(options[2]), 0)
-				vmin = opts.thresholds[0]
-				vmax = opts.thresholds[1]
+			elif len(options) == 4:
+				print "Error: -dv theshold option must have minimum and maximum values"
+				sys.exit()
 			elif len(options) == 5:
 				cmap_array = get_cmap_array(str(options[2]), 0)
 				vmin = float(options[3])
 				vmax = float(options[4])
 			else:
-				print "Error -dv must have 2, 3 or 5 inputs"
+				print "Error -dv must have two to five inputs (-dv {0 mask} {1 contrast} {2 LUT} {3 vmin} {4 vmax})"
 				sys.exit()
 
-			c_mask = options[0]
-			c_contrast = options[1]
+			c_mask = int(options[0])
+			c_contrast = int(options[1])
 
 			start = position_array[c_mask]
 			end = position_array[c_mask+1]
@@ -475,50 +450,87 @@ def run(opts):
 			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
-	if opts.importvoxelcontour:
-		vol_opacity = 0.7
-		num_contours = 20
+	if opts.importvoxelcontour: # -ivc {0 image} {1 LUT} {2 vmin} {3 vmax} {4 Contour_Opacity} {5 Number_Contours}
 		for options in opts.importvoxelcontour:
-			if len(options) == 3:
-				vol_cmap_array = get_cmap_array(opts.lookuptable[0], 0)
+			# defaults
+			vol_opacity = 0.7
+			num_contours = 20
+			vmin = opts.thresholds[0]
+			vmax = opts.thresholds[1]
+			if len(options) == 1:
+				cmap_array = get_cmap_array(opts.lookuptable[0], 0)
+			elif len(options) == 2:
+				cmap_array = get_cmap_array(str(options[1]), 0)
+			elif len(options) == 3:
+				print "Error: -ivc theshold option must have minimum and maximum values"
+				sys.exit()
 			elif len(options) == 4:
-				vol_cmap_array = get_cmap_array(options[3], 0)
+				cmap_array = get_cmap_array(str(options[1]), 0)
+				vmin = float(options[2])
+				vmax = float(options[3])
 			elif len(options) == 5:
-				vol_cmap_array = get_cmap_array(options[3], 0)
+				cmap_array = get_cmap_array(str(options[1]), 0)
+				vmin = float(options[2])
+				vmax = float(options[3])
 				vol_opacity = float(options[4])
 			elif len(options) == 6:
-				vol_cmap_array = get_cmap_array(options[3], 0)
+				cmap_array = get_cmap_array(str(options[1]), 0)
+				vmin = float(options[2])
+				vmax = float(options[3])
 				vol_opacity = float(options[4])
 				num_contours = int(options[5])
 			else:
-				print "Error -ivc must have three to six inputs (image, low threshold, high threshold, lut, opacity, # contours)"
+				print "Error -ivc must have one to six inputs (-ivc {0 image} {1 LUT} {2 vmin} {3 vmax} {4 Contour_Opacity} {5 Number_Contours})"
 				sys.exit()
+
 			invol = nib.as_closest_canonical(nib.load(str(options[0])))
 			data = check_byteorder(invol.get_data())
 
 			surf = apply_affine_to_contour3d(data, invol.affine,
-				lthresh = float(options[1]),
-				hthresh = float(options[2]),
+				lthresh = vmin,
+				hthresh = vmax,
 				name = os.path.basename(str(options[0])),
 				contours = num_contours,
 				opacity = vol_opacity)
-			surf.contour.minimum_contour = float(options[1])
-			surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
-
+			surf.contour.minimum_contour = vmin
+			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
+	if opts.displayvoxelcontour: # -dvc {0 mask} {1 contrast} {2 LUT} {3 vmin} {4 vmax} {5 Contour_Opacity} {6 Number_Contours}
+		for options in opts.displayvoxelcontour:
+			# defaults
+			vol_opacity = 0.7
+			num_contours = 20
+			vmin = opts.thresholds[0]
+			vmax = opts.thresholds[1]
+			if len(options) == 2:
+				cmap_array = get_cmap_array(opts.lookuptable[0], 0)
+			elif len(options) == 3:
+				cmap_array = get_cmap_array(str(options[2]), 0)
+			elif len(options) == 4:
+				print "Error: -dvc theshold option must have minimum and maximum values"
+				sys.exit()
+			elif len(options) == 5:
+				cmap_array = get_cmap_array(str(options[2]), 0)
+				vmin = float(options[3])
+				vmax = float(options[4])
+			elif len(options) == 6:
+				cmap_array = get_cmap_array(str(options[2]), 0)
+				vmin = float(options[3])
+				vmax = float(options[4])
+				vol_opacity = float(options[5])
+			elif len(options) == 7:
+				cmap_array = get_cmap_array(str(options[2]), 0)
+				vmin = float(options[3])
+				vmax = float(options[4])
+				vol_opacity = float(options[5])
+				num_contours = int(options[6])
+			else:
+				print "Error -dvc must have two to seven inputs (-ivc {0 mask} {1 contrast} {2 LUT} {3 vmin} {4 vmax} {5 Contour_Opacity} {6 Number_Contours})"
+				sys.exit()
 
-	if opts.displayvoxelcontour:
-
-		cmap_array[0] = [227,218,201,0]
-
-		if len(opts.displayvoxelcontour) % 2 != 0:
-			print "Error: There must be two inputs per voxel surface (mask, contrast)."
-			sys.exit()
-
-		for j in range(int(len(opts.displayvoxelcontour)/2)):
-			c_mask = opts.displayvoxelcontour[0 + int(j*2)]
-			c_contrast = opts.displayvoxelcontour[1 + int(j*2)]
+			c_mask = int(options[0])
+			c_contrast = int(options[1])
 
 			start = position_array[c_mask]
 			end = position_array[c_mask+1]
@@ -526,16 +538,19 @@ def run(opts):
 			mask = masking_array[c_mask]
 			scalar_data = np.zeros((mask.shape[0],mask.shape[1],mask.shape[2]))
 			scalar_data[mask] = image_array[0][start:end,c_contrast]
+
 			invol = nib.as_closest_canonical(nib.Nifti1Image(scalar_data, affine_array[c_mask]))
 			data = check_byteorder(invol.get_data())
 
-			surf = apply_affine_to_contour3d(data, invol.affine,
-				lthresh = opts.thresholds[0],
-				hthresh = opts.thresholds[1],
+			surf = apply_affine_to_contour3d(data, 
+				invol.affine,
+				lthresh = vmin,
+				hthresh = vmax,
 				name = maskname_array[c_mask],
-				opacity = 0.7)
-			surf.contour.minimum_contour = float(opts.thresholds[0])
+				opacity = vol_opacity)
+			surf.contour.minimum_contour = vmin
 			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
+			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
 	if opts.displaysurface:
 		for c_surf in opts.displaysurface:
@@ -555,9 +570,35 @@ def run(opts):
 				color = (227/255, 218/255, 201/255))
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
-	if opts.importvolume:
-		for volume in opts.importvolume:
-			invol =  nib.as_closest_canonical(nib.load(volume))
+
+
+	if opts.importvolume: # -iv {0 image} {1 LUT} {2 vmin} {3 vmax} {4 opacity}
+		for options in opts.importvolume:
+			#defaults
+			vmin = opts.thresholds[0]
+			vmax = opts.thresholds[1]
+			vol_opacity = opts.opacity[0]
+			if len(options) == 1:
+				cmap_array = get_cmap_array(opts.lookuptable[0], 0)
+			elif len(options) == 2:
+				cmap_array = get_cmap_array(str(options[1]), 0)
+			elif len(options) == 3:
+				print "Error: -iv theshold option must have minimum and maximum values"
+				sys.exit()
+			elif len(options) == 4:
+				cmap_array = get_cmap_array(str(options[1]), 0)
+				vmin = float(options[2])
+				vmax = float(options[3])
+			elif len(options) == 5:
+				cmap_array = get_cmap_array(str(options[1]), 0)
+				vmin = float(options[2])
+				vmax = float(options[3])
+				vol_opacity = float(options[4])
+			else:
+				print "Error -iv must have one to five inputs (-iv {0 image} {1 LUT} {2 vmin} {3 vmax} {4 opacity})"
+				sys.exit()
+
+			invol =  nib.as_closest_canonical(nib.load(str(options[0])))
 			data = check_byteorder(invol.get_data())
 			v, f, scalar_data = convert_voxel(data, affine = invol.get_affine())
 
@@ -568,70 +609,14 @@ def run(opts):
 					scalar = scalar_data,
 					mode = str(opts.smoothingtype[0]))
 
-			if np.mean(scalar_data[scalar_data != 0]) == 1:
-				surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
-					scalars = scalar_data, 
-					name = os.path.basename(volume),
-					opacity = opts.opacity[0],
-					color = (227/255, 218/255, 201/255))
-			else:
-				surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
-					scalars = scalar_data, 
-					vmin = opts.thresholds[0],
-					vmax = opts.thresholds[1],
-					name = os.path.basename(volume))
-				cmap_array[0] = [227,218,201,0]
-				surf.module_manager.scalar_lut_manager.lut.table = cmap_array
-			surf.actor.mapper.interpolate_scalars_before_mapping = 1
-
-	if opts.binarizedimportvolume:
-		for volume in opts.binarizedimportvolume:
-			invol =  nib.as_closest_canonical(nib.load(volume))
-			data = check_byteorder(invol.get_data())
-
-			data[data != 0] = 1 # binary sandwich
-			v, f, scalar_data = convert_voxel(data, affine = invol.get_affine())
-			scalar_data[scalar_data != 0] = 1
-
 			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
 				scalars = scalar_data, 
-				name = os.path.basename(volume),
-				opacity = opts.opacity[0],
-				color = (227/255, 218/255, 201/255))
+				vmin = vmin,
+				vmax = vmax,
+				opacity = vol_opacity,
+				name = os.path.basename(str(options[0])))
+			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
-
-	if opts.thresholdimportvolume:
-		if len(opts.thresholdimportvolume) == 3:
-			vol_cmap_array = get_cmap_array(opts.lookuptable[3], 0)
-			vol_opacity = opts.opacity[0]
-		elif len(opts.thresholdimportvolume) == 4:
-			vol_cmap_array = get_cmap_array(opts.thresholdimportvolume[3], 0)
-			vol_opacity = opts.opacity[0]
-		elif len(opts.thresholdimportvolume) == 5:
-			vol_cmap_array = get_cmap_array(opts.thresholdimportvolume[3], 0)
-			vol_opacity = float(opts.thresholdimportvolume[4])
-		else:
-			print "Error -ivt must have three to five inputs (image, low threshold, high threshold, lut, opacity)"
-			sys.exit()
-		invol =  nib.as_closest_canonical(nib.load(str(opts.thresholdimportvolume[0])))
-		data = check_byteorder(invol.get_data())
-		v, f, scalar_data = convert_voxel(data, affine = invol.get_affine())
-
-		if opts.surfacesmoothing:
-			adjacency = create_adjac_vertex(v,f)
-			v, f, scalar_data = vectorized_surface_smooth(v, f, adjacency,
-				number_of_iter = int(opts.surfacesmoothing[0]),
-				scalar = scalar_data,
-				mode = str(opts.smoothingtype[0]))
-
-		surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
-			scalars = scalar_data, 
-			vmin = float(opts.thresholdimportvolume[1]),
-			vmax = float(opts.thresholdimportvolume[2]),
-			opacity = vol_opacity,
-			name = os.path.basename(str(opts.thresholdimportvolume[0])))
-		surf.module_manager.scalar_lut_manager.lut.table = vol_cmap_array
-		surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
 	if opts.importfreesurfer:
 		for i, insurf in enumerate(opts.importfreesurfer):
