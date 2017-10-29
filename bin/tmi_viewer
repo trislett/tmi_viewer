@@ -252,7 +252,7 @@ def run(opts):
 				print"Surface[%d]\t%s" % (s,surf) 
 		sys.exit()
 
-	# hacking setting of autothreshold default
+	# hacky setting of autothreshold to default
 	if opts.thesholdingtype is None:
 		threshtype = 'otsu'
 	elif opts.thesholdingtype == 'otsu':
