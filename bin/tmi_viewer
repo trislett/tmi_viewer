@@ -93,6 +93,18 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		default = ['r-y'],
 		nargs = 1)
 
+	ap.add_argument("-autothr", "--autotheshold",
+		help = "Use automatic thresholding as default if none is supplied. Default is 'otsu', but it other can be specified using -ttype.",
+		action = 'store_true')
+	ap.add_argument("-ttype", "--thesholdingtype",
+		help = "Method used to set the the lower threshold if thresholds are not supplied (Default is otsu). Appending '_p' sets all negative data to zero prior to autothresholding.",
+		choices = ['otsu', 'otsu_p', 'li', 'li_p', 'yen', 'yen_p', 'zscore', 'zscore_p'])
+	ap.add_argument("--zthresh",
+		help = "The z value to use for autothresholding. Default = %(default)s.",
+		nargs = 1,
+		type = float,
+		default = [2.3264],
+		metavar = 'float')
 	ap.add_argument("-t", "--thresholds",
 		help = "Set the default lower (vmin) and upper (vmax) thresholds. Defaults are: %(default)s", 
 		default=[.95,1],
@@ -240,6 +252,26 @@ def run(opts):
 				print"Surface[%d]\t%s" % (s,surf) 
 		sys.exit()
 
+	# hacking setting of autothreshold default
+	if opts.thesholdingtype is None:
+		threshtype = 'otsu'
+	elif opts.thesholdingtype == 'otsu':
+		threshtype = 'otsu'
+	elif opts.thesholdingtype == 'li':
+		threshtype = 'li'
+	elif opts.thesholdingtype == 'yen':
+		threshtype = 'yen'
+	elif opts.thesholdingtype == 'otsu_p':
+		threshtype = 'otsu_p'
+	elif opts.thesholdingtype == 'li_p':
+		threshtype = 'li_p'
+	elif opts.thesholdingtype == 'yen_p':
+		threshtype = 'yen_p'
+	elif opts.thesholdingtype == 'zscore_p':
+		threshtype = 'zscore_p'
+	else:
+		threshtype = 'zscore'
+
 	if opts.displayvoxelscalarfield: # -dvsf {0 mask} {1 contrast} {2 LUT} {3 vmin} {4 vmax}
 		for options in opts.displayvoxelscalarfield:
 			vmin = opts.thresholds[0]
@@ -271,6 +303,10 @@ def run(opts):
 
 			invol = nib.as_closest_canonical(nib.Nifti1Image(scalar_data, affine_array[c_mask]))
 			data = check_byteorder(invol.get_data())
+
+			if opts.autotheshold and len(options) < 4:
+				vmin, vmax = autothreshold(data, threshtype, opts.zthresh[0])
+				print "%s\t[%1.2f, %1.2f]" % (maskname_array[int(options[0])], vmin, vmax)
 
 			scalar_field = apply_affine_to_scalar_field(data, invol.affine)
 
@@ -321,6 +357,10 @@ def run(opts):
 
 			invol = nib.as_closest_canonical(nib.load(str(options[0])))
 			data = check_byteorder(invol.get_data())
+
+			if opts.autotheshold and len(options) < 3:
+				vmin, vmax = autothreshold(data, threshtype, opts.zthresh[0])
+				print "%s\t[%1.2f, %1.2f]" % (os.path.basename(options[0]), vmin, vmax)
 
 			scalar_field = apply_affine_to_scalar_field(data, invol.affine)
 
@@ -381,6 +421,11 @@ def run(opts):
 			mask = masking_array[c_mask]
 			scalar_data = np.zeros((mask.shape[0]))
 			scalar_data[mask[:,0,0]] = image_array[0][start:end,c_contrast]
+
+			if opts.autotheshold and len(options) < 5:
+				vmin, vmax = autothreshold(scalar_data, threshtype, opts.zthresh[0])
+				print "%s\t[%1.2f, %1.2f]" % (maskname_array[int(options[0])], vmin, vmax)
+
 			v = vertex_array[c_surf][:]
 			f = face_array[c_surf][:]
 
@@ -429,6 +474,11 @@ def run(opts):
 			mask = masking_array[c_mask]
 			scalar_data = np.zeros((mask.shape[0],mask.shape[1],mask.shape[2]))
 			scalar_data[mask] = image_array[0][start:end,c_contrast]
+
+			if opts.autotheshold and len(options) < 4:
+				vmin, vmax = autothreshold(scalar_data, threshtype, opts.zthresh[0])
+				print "%s\t[%1.2f, %1.2f]" % (maskname_array[int(options[0])], vmin, vmax)
+
 
 			invol = nib.as_closest_canonical(nib.Nifti1Image(scalar_data, affine_array[c_mask]))
 			data = check_byteorder(invol.get_data())
@@ -486,6 +536,10 @@ def run(opts):
 			invol = nib.as_closest_canonical(nib.load(str(options[0])))
 			data = check_byteorder(invol.get_data())
 
+			if opts.autotheshold and len(options) < 3:
+				vmin, vmax = autothreshold(data, threshtype, opts.zthresh[0])
+				print "%s\t[%1.2f, %1.2f]" % (os.path.basename(options[0]), vmin, vmax)
+
 			surf = apply_affine_to_contour3d(data, invol.affine,
 				lthresh = vmin,
 				hthresh = vmax,
@@ -541,6 +595,10 @@ def run(opts):
 
 			invol = nib.as_closest_canonical(nib.Nifti1Image(scalar_data, affine_array[c_mask]))
 			data = check_byteorder(invol.get_data())
+
+			if opts.autotheshold and len(options) < 4:
+				vmin, vmax = autothreshold(data, threshtype, opts.zthresh[0])
+				print "%s\t[%1.2f, %1.2f]" % (maskname_array[int(options[0])], vmin, vmax)
 
 			surf = apply_affine_to_contour3d(data, 
 				invol.affine,
@@ -600,6 +658,11 @@ def run(opts):
 
 			invol =  nib.as_closest_canonical(nib.load(str(options[0])))
 			data = check_byteorder(invol.get_data())
+
+			if opts.autotheshold and len(options) < 3:
+				vmin, vmax = autothreshold(data, threshtype, opts.zthresh[0])
+				print "%s\t[%1.2f, %1.2f]" % (os.path.basename(options[0]), vmin, vmax)
+
 			v, f, scalar_data = convert_voxel(data, affine = invol.get_affine())
 
 			if opts.surfacesmoothing:

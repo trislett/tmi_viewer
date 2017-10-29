@@ -374,6 +374,8 @@ def autothreshold(data, threshold_type = 'otsu', z = 2.3264):
 	else:
 		lthres = data.mean() - (z*data.std())
 		uthres = data.mean() + (z*data.std())
+	if uthres > data.max(): # for the rare case when uthres is larger than the max value
+		uthres = data.max()
 	return lthres, uthres
 
 
