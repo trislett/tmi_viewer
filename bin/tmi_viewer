@@ -61,7 +61,7 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 
 	# images from tmi
 	ap.add_argument("-d", "--display",
-		help="Display a surface with a scalar. The mask, contrast, and surface are required (check values with -oh or -os). Format: -d {0 mask} {1 contrast} {2 surface} {3 LUT} {4 vmin} {5 vmax}",
+		help="Display a surface with a scalar. The mask, contrast, and surface are required (check values with -oh or -os). If the same surface is used multiple times, make sure to set the alpha to 0 for each subsequent input. E.g., -d 0 0 0 tm-sunset_r -d 1 0 0 tm-breeze_r 0. Format: {0 mask} {1 contrast} {2 surface} {3 LUT} {4 alpha} {5 vmin} {6 vmax}",
 		nargs = '+',
 		action = 'append',
 		metavar = '*')
@@ -123,15 +123,10 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 
 	# external
 	ap.add_argument("-ifs", "--importfreesurfer",
-		help = "Import a freesurfer surface (use 'tm_multimodal create-tmi' to add other surface types). e.g., -ifs $SUBJECT_DIR/fsaverage/surf/?h.midthickness", 
-		nargs = '+',
-		type = str,
-		metavar = 'str')
-	ap.add_argument("-fsmgh", "--importfreesurfermgh",
-		help = "Import a freesurfer scalar (mgh) file(s) that match the input surface(s). The number of inputs must match the -ifs inputs. e.g., -ifs ?h.midthickness -fsmgh ?h_results_file.mgh", 
-		nargs = '+',
-		type = str,
-		metavar = 'str')
+		help = "Import a freesurfer surface, and optionally, a *.mgh scalar. If the same surface is used multiple times, make sure to set the alpha to 0 for each subsequent inputs. E.g., -ifs lh.midthickness lh.positive.stats.mgh tm-sunset_r -ifs -ifs lh.midthickness lh.negative.stats.mgh tm-breeze_r 0. The import surface is required. Format: -ifs {0 surface} {1 mgh} {2 LUT} {3 alpha} {4 vmin} {5 vmax}", 
+		nargs = '*',
+		action = 'append',
+		metavar = '*')
 	ap.add_argument("-iv", "--importvolume",
 		help = "Import a volume and display it as a surface and scalar. The import volume (Nifti, Minc, MGH) is required. Format: -iv {0 image} {1 LUT} {2 vmin} {3 vmax} {4 opacity}", 
 		nargs = '*',
@@ -272,6 +267,9 @@ def run(opts):
 	else:
 		threshtype = 'zscore'
 
+	#default
+	cmap_array = get_cmap_array(opts.lookuptable[0], 255)
+
 	if opts.displayvoxelscalarfield: # -dvsf {0 mask} {1 contrast} {2 LUT} {3 vmin} {4 vmax}
 		for options in opts.displayvoxelscalarfield:
 			vmin = opts.thresholds[0]
@@ -391,7 +389,7 @@ def run(opts):
 
 
 	# load surfaces
-	if opts.display: # -d {0 mask} {1 contrast} {2 surface} {3 LUT} {4 vmin} {5 vmax}
+	if opts.display: # -d {0 mask} {1 contrast} {2 surface} {3 LUT} {4 alpha} {5 vmin} {6 vmax}
 		for options in opts.display:
 			#defaults
 			vmin = opts.thresholds[0]
@@ -401,14 +399,16 @@ def run(opts):
 			elif len(options) == 4:
 				cmap_array = get_cmap_array(str(options[3]), 255)
 			elif len(options) == 5:
+				cmap_array = get_cmap_array(str(options[3]), int(options[4]))
+			elif len(options) == 6:
 				print "Error: -d theshold option must have minimum and maximum values"
 				sys.exit()
-			elif len(options) == 6:
-				cmap_array = get_cmap_array(str(options[3]), 255)
-				vmin = float(options[4])
-				vmax = float(options[5])
+			elif len(options) == 7:
+				cmap_array = get_cmap_array(str(options[3]), int(options[4]))
+				vmin = float(options[5])
+				vmax = float(options[6])
 			else:
-				print "Error -d must have three to six inputs (-d {0 mask} {1 contrast} {2 surface} {3 LUT} {4 vmin} {5 vmax})"
+				print "Error -d must have three to seven inputs (-d {0 mask} {1 contrast} {2 surface} {3 LUT} {4 alpha} {5 vmin} {6 vmax})"
 				sys.exit()
 			# display the surfaces
 			c_mask = int(options[0])
@@ -681,18 +681,41 @@ def run(opts):
 			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
-	if opts.importfreesurfer:
-		for i, insurf in enumerate(opts.importfreesurfer):
-			v, f = convert_fs(insurf)
-			if opts.importfreesurfermgh:
-				mghvol = opts.importfreesurfermgh[i]
-				if len(opts.importfreesurfer) != len(opts.importfreesurfermgh):
-					print "The number of -fsmgh inputs must match the -ifs inputs."
-					sys.exit()
-				invol = nib.load(mghvol).get_data()
+	if opts.importfreesurfer: # -ifs {0 surface} {1 mgh} {2 LUT} {3 alpha} {4 vmin} {5 vmax}
+		for options in opts.importfreesurfer:
+			#defaults
+			paint_scalar = True
+			vmin = opts.thresholds[0]
+			vmax = opts.thresholds[1]
+			if len(options) == 1:
+				paint_scalar = False
+			elif len(options) == 2:
+				get_cmap_array(opts.lookuptable[0], 255)
+			elif len(options) == 3:
+				cmap_array = get_cmap_array(str(options[2]), 255)
+			elif len(options) == 4:
+				cmap_array = get_cmap_array(str(options[2]), int(options[3]))
+			elif len(options) == 5:
+				print "Error: -ifs theshold option must have minimum and maximum values"
+				sys.exit()
+			elif len(options) == 6:
+				cmap_array = get_cmap_array(str(options[2]), int(options[3]))
+				vmin = float(options[4])
+				vmax = float(options[5])
+			else:
+				print "Error -d must have one to six inputs (-ifs {0 surface} {1 mgh} {2 LUT} {3 alpha} {4 vmin} {5 vmax})"
+				sys.exit()
+
+			v, f = convert_fs(str(options[0]))
+
+			if paint_scalar:
+				invol = nib.load(options[1]).get_data()
 				if invol.ndim != 3: 
 					print "Scalar (MGH) files with %d dimensions are not supported (hint: there should only be one subject/contrast)." % invol.ndim
 				scalar_data = check_byteorder(np.squeeze(invol)) # annoying endianess issue fix
+				if opts.autotheshold and len(options) < 5:
+					vmin, vmax = autothreshold(scalar_data, threshtype, opts.zthresh[0])
+					print "%s\t%s\t[%1.2f, %1.2f]" % (os.path.basename(options[0]), os.path.basename(options[1]), vmin, vmax)
 
 				if opts.surfacesmoothing:
 					adjacency = create_adjac_vertex(v,f)
@@ -703,11 +726,11 @@ def run(opts):
 
 				surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
 					scalars = scalar_data, 
-					vmin = opts.thresholds[0],
-					vmax = opts.thresholds[1],
-					name = os.path.basename(mghvol))
-				
+					vmin = vmin,
+					vmax = vmax,
+					name = os.path.basename(str(options[1])))
 				surf.module_manager.scalar_lut_manager.lut.table = cmap_array
+				surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
 			else:
 				if opts.surfacesmoothing:
@@ -717,10 +740,12 @@ def run(opts):
 						mode = str(opts.smoothingtype[0]))
 
 				surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
-					name = os.path.basename(insurf),
+					name = os.path.basename(str(options[0])),
 					opacity = opts.opacity[0],
 					color = (227/255, 218/255, 201/255))
-			surf.actor.mapper.interpolate_scalars_before_mapping = 1
+				surf.actor.mapper.interpolate_scalars_before_mapping = 1
+
+
 
 	if opts.savesnapshots:
 
