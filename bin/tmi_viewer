@@ -123,7 +123,7 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 
 	# external
 	ap.add_argument("-ifs", "--importfreesurfer",
-		help = "Import a freesurfer surface, and optionally, a *.mgh scalar. If the same surface is used multiple times, make sure to set the alpha to 0 for each subsequent inputs. E.g., -ifs lh.midthickness lh.positive.stats.mgh tm-sunset_r -ifs -ifs lh.midthickness lh.negative.stats.mgh tm-breeze_r 0. The import surface is required. Format: -ifs {0 surface} {1 mgh} {2 LUT} {3 alpha} {4 vmin} {5 vmax}", 
+		help = "Import a freesurfer surface, and optionally, a *.mgh scalar. If the same surface is used multiple times, make sure to set the alpha to 0 for each subsequent inputs. E.g., -ifs lh.midthickness lh.positive.stats.mgh tm-sunset_r -ifs lh.midthickness lh.negative.stats.mgh tm-breeze_r 0. The import surface is required. Format: -ifs {0 surface} {1 mgh} {2 LUT} {3 alpha} {4 vmin} {5 vmax}", 
 		nargs = '*',
 		action = 'append',
 		metavar = '*')
@@ -184,6 +184,12 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		choices = ['cubic','linear', 'nearest_neighbour'],
 		default = ['linear'],
 		metavar = 'str')
+
+	ap.add_argument("-smgh", "--selectmghvolume",
+		help="Set the subject/contrast/timepoint in 4D MGH file imported with -ifs. Optionally, a multiplier can also be supplied. The # of inputs for -ifs and -smgh must match (If an input MGH is 3D use 0). Format: {0 volnum} {1 multiplier}",
+		nargs = '+',
+		action = 'append',
+		metavar = '*')
 
 	ap.add_argument("-oh", "--history",
 		help="Output tmi file history and exits.", 
@@ -304,7 +310,7 @@ def run(opts):
 
 			if opts.autotheshold and len(options) < 4:
 				vmin, vmax = autothreshold(data, threshtype, opts.zthresh[0])
-				print "%s\t[%1.2f, %1.2f]" % (maskname_array[int(options[0])], vmin, vmax)
+				print "%s\t[%.3g, %.3g]" % (maskname_array[int(options[0])], vmin, vmax)
 
 			scalar_field = apply_affine_to_scalar_field(data, invol.affine)
 
@@ -358,7 +364,7 @@ def run(opts):
 
 			if opts.autotheshold and len(options) < 3:
 				vmin, vmax = autothreshold(data, threshtype, opts.zthresh[0])
-				print "%s\t[%1.2f, %1.2f]" % (os.path.basename(options[0]), vmin, vmax)
+				print "%s\t[%.3g, %.3g]" % (os.path.basename(options[0]), vmin, vmax)
 
 			scalar_field = apply_affine_to_scalar_field(data, invol.affine)
 
@@ -424,7 +430,7 @@ def run(opts):
 
 			if opts.autotheshold and len(options) < 5:
 				vmin, vmax = autothreshold(scalar_data, threshtype, opts.zthresh[0])
-				print "%s\t[%1.2f, %1.2f]" % (maskname_array[int(options[0])], vmin, vmax)
+				print "%s\t[%.3g, %.3g]" % (maskname_array[int(options[0])], vmin, vmax)
 
 			v = vertex_array[c_surf][:]
 			f = face_array[c_surf][:]
@@ -477,7 +483,7 @@ def run(opts):
 
 			if opts.autotheshold and len(options) < 4:
 				vmin, vmax = autothreshold(scalar_data, threshtype, opts.zthresh[0])
-				print "%s\t[%1.2f, %1.2f]" % (maskname_array[int(options[0])], vmin, vmax)
+				print "%s\t[%.3g, %.3g]" % (maskname_array[int(options[0])], vmin, vmax)
 
 
 			invol = nib.as_closest_canonical(nib.Nifti1Image(scalar_data, affine_array[c_mask]))
@@ -538,7 +544,7 @@ def run(opts):
 
 			if opts.autotheshold and len(options) < 3:
 				vmin, vmax = autothreshold(data, threshtype, opts.zthresh[0])
-				print "%s\t[%1.2f, %1.2f]" % (os.path.basename(options[0]), vmin, vmax)
+				print "%s\t[%.3g, %.3g]" % (os.path.basename(options[0]), vmin, vmax)
 
 			surf = apply_affine_to_contour3d(data, invol.affine,
 				lthresh = vmin,
@@ -661,7 +667,7 @@ def run(opts):
 
 			if opts.autotheshold and len(options) < 3:
 				vmin, vmax = autothreshold(data, threshtype, opts.zthresh[0])
-				print "%s\t[%1.2f, %1.2f]" % (os.path.basename(options[0]), vmin, vmax)
+				print "%s\t[%.3g, %.3g]" % (os.path.basename(options[0]), vmin, vmax)
 
 			v, f, scalar_data = convert_voxel(data, affine = invol.get_affine())
 
@@ -682,7 +688,7 @@ def run(opts):
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
 	if opts.importfreesurfer: # -ifs {0 surface} {1 mgh} {2 LUT} {3 alpha} {4 vmin} {5 vmax}
-		for options in opts.importfreesurfer:
+		for onum, options in enumerate(opts.importfreesurfer):
 			#defaults
 			paint_scalar = True
 			vmin = opts.thresholds[0]
@@ -710,12 +716,22 @@ def run(opts):
 
 			if paint_scalar:
 				invol = nib.load(options[1]).get_data()
-				if invol.ndim != 3: 
-					print "Scalar (MGH) files with %d dimensions are not supported (hint: there should only be one subject/contrast)." % invol.ndim
+				if invol.ndim == 3:
+					pass
+				elif opts.selectmghvolume:
+					invol = invol[:,:,:,int(opts.selectmghvolume[onum][0])]
+					if len(opts.selectmghvolume[onum]) == 2:
+						invol *= int(opts.selectmghvolume[onum][1])
+				elif invol.ndim == 4:
+					print "Detected %s as a 4D volume. Extracting the first volume." % options[1]
+					invol = invol[:,:,:,0]
+				else:
+					print "Scalar (MGH) files with %d dimensions are not supported." % invol.ndim
+					quit()
 				scalar_data = check_byteorder(np.squeeze(invol)) # annoying endianess issue fix
 				if opts.autotheshold and len(options) < 5:
 					vmin, vmax = autothreshold(scalar_data, threshtype, opts.zthresh[0])
-					print "%s\t%s\t[%1.2f, %1.2f]" % (os.path.basename(options[0]), os.path.basename(options[1]), vmin, vmax)
+					print "%s\t%s\t[%.3g, %.3g]" % (os.path.basename(options[0]), os.path.basename(options[1]), vmin, vmax)
 
 				if opts.surfacesmoothing:
 					adjacency = create_adjac_vertex(v,f)
