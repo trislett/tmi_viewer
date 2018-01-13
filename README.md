@@ -1,5 +1,7 @@
 # TMI_Viewer: Vertex/Voxel Rendering for TMI files and other neuroimaging formats
 
+![Splash type schematic](https://github.com/trislett/TFCE_mediation/blob/master/tfce_mediation/doc/tmi_viewer_multimodal.png "Schematic")
+
 The tmi_viewer package contains two programs:
 ### A) tmi_viewer
 
