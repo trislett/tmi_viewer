@@ -15,7 +15,7 @@ Features:
 - Voxel images can be viewed as: (1) surfaces using a marching cube algorithm, (2) voxel contour, (3) and voxel scalar field.
 - The default settings are optimized for viewing neuroimages. 
 - tmi_viewer is highly optimized for speed. 
-- Many autothresholding algorithms available including: Otsu et al., Li et al., Yen et al., and Z threholding. (See Citations)
+- Many autothresholding algorithms available including: Otsu et al., Li et al., Yen et al., and Z threholding.
 - Extremely fast algorithm for applying Lapacian or Taubin (low-pass) smooth. e.g., ~1000 passes takes around one minute.
 - Easy export of background transparent images for creating figures.
 - Many new look-up tables (LUTs) that are specifically designed for visualising neuroimaging statistics (as well as the LUTs included with matplotlib).
@@ -29,7 +29,7 @@ Outputs a web-page with whole brain slices from voxel-based neuroimages in nativ
 Features:
 
 - Great for making figures: Creates a web-page displaying overlapping any number of voxel-based images, and they can be at any resolution.
-- Many autothresholding algorithms available including: Otsu et al., Li et al., Yen et al., and Z threholding. (See Citations)
+- Many autothresholding algorithms available including: Otsu et al., Li et al., Yen et al., and Z threholding.
 - Import images, binarize them at any threshold, and paint the image outline.
 - Specify number of slices, size of slices, transparency, etc.
 
