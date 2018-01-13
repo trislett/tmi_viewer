@@ -31,16 +31,6 @@ Features:
 - Import images, binarize them at any threshold, and paint the image outline.
 - Specify number of slices, size of slices, transparency, etc.
 
-***
-
-These programs relies on Mayavi, and setting can changed using the Mayavi interactive session. If you use them please cite: 
-
-Ramachandran, P. and Varoquaux, G., _Mayavi. 3D Visualization of Scientific Data._ IEEE Computing in Science & Engineering, 13 (2), pp. 40-51 (2011).
-
-
-***
-
-
 ## Installation
 
 ### Requirements:
@@ -62,3 +52,13 @@ Using PIP (Recommended):
 From source:
 ```sudo python setup.py install```
  - Additional requirement: [mayavi](http://docs.enthought.com/mayavi/mayavi/)
+ 
+ 
+***
+
+These programs relies on Mayavi, and setting can changed using the Mayavi interactive session. If you use them please cite: 
+
+Ramachandran, P. and Varoquaux, G., _Mayavi. 3D Visualization of Scientific Data._ IEEE Computing in Science & Engineering, 13 (2), pp. 40-51 (2011).
+
+
+***
