@@ -204,6 +204,8 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 
 def run(opts):
 
+	print sys.version_info
+
 	if opts.plotluts:
 		display_matplotlib_luts()
 		sys.exit()
@@ -295,8 +297,8 @@ def run(opts):
 				print "Error -dvsf must have two to five inputs (-dvsf {0 mask} {1 contrast} {2 LUT} {3 vmin} {4 vmax})"
 				sys.exit()
 
-			c_mask = options[0]
-			c_contrast = options[1]
+			c_mask = int(options[0])
+			c_contrast = int(options[1])
 
 			start = position_array[c_mask]
 			end = position_array[c_mask+1]

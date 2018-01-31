@@ -349,34 +349,38 @@ def draw_outline(img_png, mask_png, outline_color = [1,0,0,1]):
 
 
 # various methods for choosing thresholds automatically
-def autothreshold(data, threshold_type = 'otsu', z = 2.3264):
+def autothreshold(data, threshold_type = 'yen', z = 2.3264):
 	if threshold_type.endswith('_p'):
 		data = data[data>0]
 	else:
 		data = data[data!=0]
-	if (threshold_type == 'otsu') or (threshold_type == 'otsu_p'):
-		lthres = filters.threshold_otsu(data)
-		uthres = data[data>lthres].mean() + (z*data[data>lthres].std())
-		# Otsu N (1979) A threshold selection method from gray-level histograms. IEEE Trans. Sys., Man., Cyber. 9: 62-66.
-	elif (threshold_type == 'li')  or (threshold_type == 'li_p'):
-		lthres = filters.threshold_li(data)
-		uthres = data[data>lthres].mean() + (z*data[data>lthres].std())
-		# Li C.H. and Lee C.K. (1993) Minimum Cross Entropy Thresholding Pattern Recognition, 26(4): 617-625
-	elif (threshold_type == 'yen') or (threshold_type == 'yen_p'):
-		lthres = filters.threshold_yen(data)
-		uthres = data[data>lthres].mean() + (z*data[data>lthres].std())
-		# Yen J.C., Chang F.J., and Chang S. (1995) A New Criterion for Automatic Multilevel Thresholding IEEE Trans. on Image Processing, 4(3): 370-378.
-	elif threshold_type == 'zscore_p':
-		lthres = data.mean() - (z*data.std())
-		uthres = data.mean() + (z*data.std())
-		if lthres < 0:
-			lthres = 0.001
+	if data.size == 0:
+		print "Warning: the data array is empty. Auto-thesholding will not be performed"
+		return 0, 0
 	else:
-		lthres = data.mean() - (z*data.std())
-		uthres = data.mean() + (z*data.std())
-	if uthres > data.max(): # for the rare case when uthres is larger than the max value
-		uthres = data.max()
-	return lthres, uthres
+		if (threshold_type == 'otsu') or (threshold_type == 'otsu_p'):
+			lthres = filters.threshold_otsu(data)
+			uthres = data[data>lthres].mean() + (z*data[data>lthres].std())
+			# Otsu N (1979) A threshold selection method from gray-level histograms. IEEE Trans. Sys., Man., Cyber. 9: 62-66.
+		elif (threshold_type == 'li')  or (threshold_type == 'li_p'):
+			lthres = filters.threshold_li(data)
+			uthres = data[data>lthres].mean() + (z*data[data>lthres].std())
+			# Li C.H. and Lee C.K. (1993) Minimum Cross Entropy Thresholding Pattern Recognition, 26(4): 617-625
+		elif (threshold_type == 'yen') or (threshold_type == 'yen_p'):
+			lthres = filters.threshold_yen(data)
+			uthres = data[data>lthres].mean() + (z*data[data>lthres].std())
+			# Yen J.C., Chang F.J., and Chang S. (1995) A New Criterion for Automatic Multilevel Thresholding IEEE Trans. on Image Processing, 4(3): 370-378.
+		elif threshold_type == 'zscore_p':
+			lthres = data.mean() - (z*data.std())
+			uthres = data.mean() + (z*data.std())
+			if lthres < 0:
+				lthres = 0.001
+		else:
+			lthres = data.mean() - (z*data.std())
+			uthres = data.mean() + (z*data.std())
+		if uthres > data.max(): # for the rare case when uthres is larger than the max value
+			uthres = data.max()
+		return lthres, uthres
 
 
 # makes a webpage of slices
