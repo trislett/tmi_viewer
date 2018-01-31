@@ -204,8 +204,6 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 
 def run(opts):
 
-	print sys.version_info
-
 	if opts.plotluts:
 		display_matplotlib_luts()
 		sys.exit()
