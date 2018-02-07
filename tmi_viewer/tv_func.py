@@ -16,7 +16,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import division
+
 import os
 import sys
 import numpy as np
@@ -35,7 +35,7 @@ if 'QT_API' not in os.environ:
 try:
 	from mayavi import mlab
 except:
-	print "Trying pyside"
+	print("Trying pyside")
 	os.environ['QT_API'] = 'pyside'
 	from mayavi import mlab
 
@@ -57,7 +57,7 @@ def check_byteorder(np_array):
 def apply_affine_to_scalar_field(data, affine):
 	data = np.array(data)
 	if data.ndim == 4: # double check
-		print "4D volume detected. Only the first volume will be displayed."
+		print("4D volume detected. Only the first volume will be displayed.")
 		data = data[:,:,:,0]
 	size_x, size_y, size_z = data.shape
 	x,y,z = np.where(data!=55378008)
@@ -75,7 +75,7 @@ def apply_affine_to_scalar_field(data, affine):
 def apply_affine_to_contour3d(data, affine, lthresh, hthresh, name, contours = 15, opacity = 0.7):
 	data = np.array(data)
 	if data.ndim == 4: # double check
-		print "4D volume detected. Only the first volume will be displayed."
+		print("4D volume detected. Only the first volume will be displayed.")
 		data = data[:,:,:,0]
 	size_x, size_y, size_z = data.shape
 	x,y,z = np.where(data!=55378008)
@@ -159,18 +159,18 @@ def display_matplotlib_luts():
 	a = np.vstack((a,a))
 
 	maps = sorted(m for m in plt.cm.datad if not m.endswith("_r"))
-	maps.append(u'red-yellow') # custom maps 
-	maps.append(u'blue-lightblue')
-	maps.append(u'green-lightgreen')
-	maps.append(u'tm-breeze')
-	maps.append(u'tm-sunset')
-	maps.append(u'tm-broccoli')
-	maps.append(u'tm-octopus')
-	maps.append(u'tm-storm')
-	maps.append(u'tm-flow')
-	maps.append(u'tm-logBluGry')
-	maps.append(u'tm-logRedYel')
-	maps.append(u'tm-erfRGB')
+	maps.append('red-yellow') # custom maps 
+	maps.append('blue-lightblue')
+	maps.append('green-lightgreen')
+	maps.append('tm-breeze')
+	maps.append('tm-sunset')
+	maps.append('tm-broccoli')
+	maps.append('tm-octopus')
+	maps.append('tm-storm')
+	maps.append('tm-flow')
+	maps.append('tm-logBluGry')
+	maps.append('tm-logRedYel')
+	maps.append('tm-erfRGB')
 	nmaps = len(maps) + 1
 
 	fig = plt.figure(figsize=(8,12))
@@ -260,8 +260,8 @@ def get_cmap_array(lut, background_alpha = 255, image_alpha = 1.0, zero_lower = 
 			cmap_array = eval('plt.cm.%s(np.arange(256))' % lut)
 			cmap_array[:,3] = cmap_array[:,3] = image_alpha
 		except:
-			print "Error: Lookup table '%s' is not recognized." % lut
-			print "The lookup table can be red-yellow (r_y), blue-lightblue (b_lb) or any matplotlib colorschemes (https://matplotlib.org/examples/color/colormaps_reference.html)"
+			print("Error: Lookup table '%s' is not recognized." % lut)
+			print("The lookup table can be red-yellow (r_y), blue-lightblue (b_lb) or any matplotlib colorschemes (https://matplotlib.org/examples/color/colormaps_reference.html)")
 			sys.exit()
 		cmap_array *= 255
 	if c_reverse:
@@ -355,7 +355,7 @@ def autothreshold(data, threshold_type = 'yen', z = 2.3264):
 	else:
 		data = data[data!=0]
 	if data.size == 0:
-		print "Warning: the data array is empty. Auto-thesholding will not be performed"
+		print("Warning: the data array is empty. Auto-thesholding will not be performed")
 		return 0, 0
 	else:
 		if (threshold_type == 'otsu') or (threshold_type == 'otsu_p'):

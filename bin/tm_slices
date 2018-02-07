@@ -16,7 +16,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import division
+
 import os
 import sys
 import numpy as np
@@ -35,7 +35,7 @@ if 'QT_API' not in os.environ:
 try:
 	from mayavi import mlab
 except:
-	print "Trying pyside"
+	print("Trying pyside")
 	os.environ['QT_API'] = 'pyside'
 	from mayavi import mlab
 
@@ -128,7 +128,7 @@ def run(opts):
 
 	if opts.importvoxelimage:
 		if opts.outputname is None:
-			print "Output name is required"
+			print("Output name is required")
 			sys.exit()
 		if opts.thesholdingtype is None:
 			threshtype = 'otsu'
@@ -163,7 +163,7 @@ def run(opts):
 				if len(opts.alpha) == len(opts.importvoxelimage):
 					c_map = get_cmap_array(opts_vi[1], background_alpha = 0, image_alpha = float(opts.alpha[i]))
 				else:
-					print "Error: the number of -iv (%d) must match the length of --alpha (%d)" % (len(opts.importvoxelimage),len(opts.alpha))
+					print("Error: the number of -iv (%d) must match the length of --alpha (%d)" % (len(opts.importvoxelimage),len(opts.alpha)))
 					quit()
 			else:
 				c_map = get_cmap_array(opts_vi[1], background_alpha = 0)
@@ -174,18 +174,18 @@ def run(opts):
 				if len(opts.sign) == len(opts.importvoxelimage):
 					data *= int(opts.sign[i])
 				else:
-					print "Error: the number of -iv (%d) must match the length of --sign (%d)" % (len(opts.importvoxelimage),len(opts.sign))
+					print("Error: the number of -iv (%d) must match the length of --sign (%d)" % (len(opts.importvoxelimage),len(opts.sign)))
 					quit()
 			if opts.slicenumber is not None:
 				if len(opts.slicenumber) == len(opts.importvoxelimage):
 					if data.ndim == 4:
 						data *= int(opts.slicenumber[i])
 				else:
-					print "Error: the number of -iv (%d) must match the length of -sn (%d)" % (len(opts.importvoxelimage),len(opts.slicenumber))
+					print("Error: the number of -iv (%d) must match the length of -sn (%d)" % (len(opts.importvoxelimage),len(opts.slicenumber)))
 					quit()
 			else:
 				if data.ndim == 4:
-					print "Detected %s as a 4D volume. Extracting the first volume." % imgname
+					print("Detected %s as a 4D volume. Extracting the first volume." % imgname)
 					data = data[:,:,:,0]
 
 			# Set thresholds
@@ -194,10 +194,10 @@ def run(opts):
 				uthres = float(opts_vi[3])
 			elif len(opts_vi) == 2:
 				lthres, uthres = autothreshold(data, threshtype, opts.zthresh[0])
-				print "%s Lower Threshold = %1.2f" % (os.path.basename(opts_vi[0]), lthres)
-				print "%s Upper Threshold = %1.2f" % (os.path.basename(opts_vi[0]), uthres)
+				print("%s Lower Threshold = %1.2f" % (os.path.basename(opts_vi[0]), lthres))
+				print("%s Upper Threshold = %1.2f" % (os.path.basename(opts_vi[0]), uthres))
 			else:
-				print "Error: there must be two or four inputs with -iv"
+				print("Error: there must be two or four inputs with -iv")
 				quit()
 
 			# Create surfaces
@@ -275,7 +275,7 @@ def run(opts):
 		elif len(opts.addmaskoutline) == 1:
 			lthres, _ = autothreshold(data, threshtype, opts.zthresh[0])
 		else:
-			print "Error"
+			print("Error")
 
 		data[data <= lthres] = 0
 		data[data > lthres] = 1
