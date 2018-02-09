@@ -78,8 +78,9 @@ pip install -U tfce-mediation
 **Download and install SIP and PyQT4**
 
 a. Download and unzip SIP and PyQT4
-SIP download [link](https://www.riverbankcomputing.com/software/sip/download)
-QT4 download [link](https://www.riverbankcomputing.com/software/pyqt/download)
+
+* SIP download [link](https://www.riverbankcomputing.com/software/sip/download)
+* QT4 download [link](https://www.riverbankcomputing.com/software/pyqt/download)
 
 b. Install SIP (not version may be different)
 
