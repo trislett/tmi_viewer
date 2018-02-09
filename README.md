@@ -85,7 +85,7 @@ a. Download and unzip SIP and PyQT4
 b. Install SIP (not version may be different)
 
 ```
-cd sip-4.18
+cd sip-4.19.7
 python configure.py
 make
 make install
@@ -94,7 +94,7 @@ make install
 c. Install PyQT4
 
 ```
-cd ../PyQt-x11-gpl-4.11.4
+cd ../PyQt-x11-gpl-4.12.1
 python configure-ng.py
 ```
 
