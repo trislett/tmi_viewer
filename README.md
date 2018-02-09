@@ -64,7 +64,7 @@ _Note: this example uses python 3.5_
 **Create and source virtual environment**
 
 ```
-virtualenv virtualenv -p python3.5 python3env
+virtualenv -p python3.5 python3env
 source python3env/bin/activate
 ```
 
