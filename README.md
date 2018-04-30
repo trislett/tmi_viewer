@@ -35,7 +35,9 @@ Features:
 
 ## Installation
 
-### Requirements:
+### With sudo permissions
+
+##### Requirements:
 
 * [TFCE_mediation](https://github.com/trislett/TFCE_mediation)
 * [VTK](http://www.vtk.org/download/)
@@ -46,7 +48,7 @@ For Ubuntu:
 For OSX:
 ```brew install vtk```
 
-### Installation:
+##### Installation:
 
 Using PIP (Recommended):
 ```sudo -H pip install -U tmi_viewer```
@@ -55,7 +57,66 @@ From source:
 ```sudo python setup.py install```
  - Additional requirement: [mayavi](http://docs.enthought.com/mayavi/mayavi/)
  
+### Using a Python Virtual Environment
  
+_Note: this example uses python 3.5_
+ 
+**Create and source virtual environment**
+
+```
+virtualenv -p python3.5 python3env
+source python3env/bin/activate
+```
+
+**Install TFCE_mediation**
+
+```
+pip install -U tfce-mediation
+
+```
+
+**Download and install SIP and PyQT4**
+
+a. Download and unzip SIP and PyQT4
+
+* SIP download [link](https://www.riverbankcomputing.com/software/sip/download)
+* QT4 download [link](https://www.riverbankcomputing.com/software/pyqt/download)
+
+b. Install SIP (not version may be different)
+
+```
+cd sip-4.19.7
+python configure.py
+make
+make install
+```
+
+c. Install PyQT4
+
+```
+cd ../PyQt-x11-gpl-4.12.1
+python configure-ng.py
+```
+
+Accepted the user agreement then run:
+
+```
+make
+make install
+```
+
+**pip install vtk**
+
+```
+pip install vtk
+```
+
+**pip install tmi_viewer**
+
+```
+pip install -U tmi_viewer
+```
+
 ***
 
 These programs relies on Mayavi, and setting can changed using the Mayavi interactive session. If you use them please cite: 
