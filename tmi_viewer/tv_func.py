@@ -48,7 +48,7 @@ def check_byteorder(np_array):
 		sys_bo = '>'
 	else:
 		pass
-	if np_array.dtype.byteorder != sys_bo:
+	if not (np_array.dtype.byteorder == sys_bo) or (np_array.dtype.byteorder == '='):
 		np_array = np_array.byteswap().newbyteorder()
 	return np_array
 
@@ -82,6 +82,7 @@ def apply_affine_to_contour3d(data, affine, lthresh, hthresh, name, contours = 1
 	coord = np.column_stack((x,y))
 	coord = np.column_stack((coord,z))
 	coord_array = nib.affines.apply_affine(affine, coord)
+	contour_list = np.arange(lthresh,hthresh,((hthresh-lthresh)/contours)).tolist()
 	xi = coord_array[:,0].reshape(size_x, size_y, size_z)
 	yi = coord_array[:,1].reshape(size_x, size_y, size_z)
 	zi = coord_array[:,2].reshape(size_x, size_y, size_z)
@@ -90,7 +91,7 @@ def apply_affine_to_contour3d(data, affine, lthresh, hthresh, name, contours = 1
 		vmax = hthresh,
 		opacity = opacity,
 		name = name,
-		contours=contours)
+		contours = contour_list)
 	return src
 
 # returns the non-empty range

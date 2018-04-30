@@ -547,8 +547,8 @@ def run(opts):
 				print("%s\t[%.3g, %.3g]" % (os.path.basename(options[0]), vmin, vmax))
 
 			surf = apply_affine_to_contour3d(data, invol.affine,
-				lthresh = vmin,
-				hthresh = vmax,
+				lthresh = float(vmin),
+				hthresh = float(vmax),
 				name = os.path.basename(str(options[0])),
 				contours = num_contours,
 				opacity = vol_opacity)
@@ -612,7 +612,7 @@ def run(opts):
 				hthresh = vmax,
 				name = maskname_array[c_mask],
 				opacity = vol_opacity)
-			surf.contour.minimum_contour = vmin
+#			surf.contour.minimum_contour = vmin
 			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
