@@ -449,7 +449,8 @@ def run(opts):
 				vmax = vmax,
 				name = maskname_array[c_mask])
 			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
-			surf.actor.mapper.interpolate_scalars_before_mapping = 1
+			surf.actor.mapper.interpolate_scalars_before_mapping = 0
+			surf.actor.property.backface_culling = True
 
 	if opts.displayvoxel: # -dv {0 mask} {1 contrast} {2 LUT} {3 vmin} {4 vmax}
 		for options in opts.displayvoxel:
@@ -746,7 +747,8 @@ def run(opts):
 					vmax = vmax,
 					name = os.path.basename(str(options[1])))
 				surf.module_manager.scalar_lut_manager.lut.table = cmap_array
-				surf.actor.mapper.interpolate_scalars_before_mapping = 1
+				surf.actor.mapper.interpolate_scalars_before_mapping = 0
+				surf.actor.property.backface_culling = True
 
 			else:
 				if opts.surfacesmoothing:
@@ -758,9 +760,9 @@ def run(opts):
 				surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
 					name = os.path.basename(str(options[0])),
 					opacity = opts.opacity[0],
-					color = (227/255, 218/255, 201/255))
-				surf.actor.mapper.interpolate_scalars_before_mapping = 1
-
+					color = (1, 1, 1))
+				surf.actor.mapper.interpolate_scalars_before_mapping = 0
+				surf.actor.property.backface_culling = True
 
 
 	if opts.savesnapshots:
@@ -769,42 +771,44 @@ def run(opts):
 
 		surf.scene.x_minus_view()
 		savename = '%s_left.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, size = (1600,1600))
+		mlab.savefig(savename, magnification=5)
 		correct_image(savename)
 		surf.scene.x_plus_view()
 		savename = '%s_right.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, size = (1600,1600))
+		mlab.savefig(savename, magnification=5)
 		correct_image(savename)
 
 		surf.scene.y_minus_view()
 		savename = '%s_posterior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, size = (1600,1600))
+		mlab.savefig(savename, magnification=5)
 		correct_image(savename, rotate = 270, b_transparent = True)
 		surf.scene.y_plus_view()
 		savename = '%s_anterior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, size = (1600,1600))
+		mlab.savefig(savename, magnification=5)
 		correct_image(savename, rotate = 90, b_transparent = True)
 
 		surf.scene.z_minus_view()
 		savename = '%s_inferior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, size = (1600,1600))
+		mlab.savefig(savename, magnification=5)
 		correct_image(savename)
 		surf.scene.z_plus_view()
 		savename = '%s_superior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, size = (1600,1600))
+		mlab.savefig(savename, magnification=5)
 		correct_image(savename)
 
 		surf.scene.isometric_view()
 		savename = '%s_isometric.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, size = (1600,1600))
+		mlab.savefig(savename, magnification=5)
 		correct_image(savename)
 
 		rl_cmap = colors.ListedColormap(cmap_array[:,0:3]/255)
-		write_colorbar(opts.thresholds, rl_cmap, opts.lookuptable[0])
-		if opts.inputtmi:
-			make_html(opts.inputtmi[0], opts.savesnapshots[0], opts.lookuptable[0], "%s.html" % opts.savesnapshots[0])
-		else:
-			make_html(opts.savesnapshots[0], opts.savesnapshots[0], opts.lookuptable[0], "%s.html" % opts.savesnapshots[0])
+		write_colorbar(opts.thresholds, rl_cmap, "%s_%s" % (opts.savesnapshots[0], opts.lookuptable[0]))
+#		if opts.inputtmi:
+#			make_html(opts.inputtmi[0], opts.savesnapshots[0], opts.lookuptable[0], "%s.html" % opts.savesnapshots[0])
+#		else:
+#			make_html(opts.savesnapshots[0], opts.savesnapshots[0], opts.lookuptable[0], "%s.html" % opts.savesnapshots[0])
+		mlab.clf()
+		quit()
 
 	surf.scene.background = (0,0,0)
 	mlab.show()

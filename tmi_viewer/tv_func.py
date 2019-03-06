@@ -30,14 +30,17 @@ import scipy.misc as misc
 from scipy.special import erf
 import matplotlib.cbook
 from skimage import filters
-if 'QT_API' not in os.environ:
-	os.environ['QT_API'] = 'pyqt'
-try:
-	from mayavi import mlab
-except:
-	print("Trying pyside")
-	os.environ['QT_API'] = 'pyside'
-	from mayavi import mlab
+
+from mayavi import mlab
+
+#if 'QT_API' not in os.environ:
+#	os.environ['QT_API'] = 'pyqt'
+#try:
+#	from mayavi import mlab
+#except:
+#	print("Trying pyside")
+#	os.environ['QT_API'] = 'pyside'
+#	from mayavi import mlab
 
 
 # makes sure that endianess is correct for the system
@@ -153,7 +156,7 @@ def display_matplotlib_luts():
 	# history, Andrew Straw did the conversion from an old page, but it is
 	# unclear who the original author is.
 
-	plt.switch_backend('Qt4Agg')
+#	plt.switch_backend('Qt4Agg')
 	warnings.filterwarnings("ignore",category=matplotlib.cbook.mplDeprecation)
 
 	a = np.linspace(0, 1, 256).reshape(1,-1)
