@@ -41,8 +41,9 @@ except:
 	from mayavi import mlab
 
 
+
 DESCRIPTION = """
-tmi_viewer: Displays multimodal neuroimaging data (surfaces and volumes) in the same space from a TMI file (although TMI files are not required). This program relies on Mayavi, and setting can changed using the Mayavi interactive session.
+tmi_viewer: Displays multimodal neuroimaging data (surfaces and volumes) in the same space from a TMI file (although TMI files are not required). This program relies on Mayavi, and settings can changed using the Mayavi interactive session.
 If you use it please cite: Ramachandran, P. and Varoquaux, G., `Mayavi: 3D Visualization of Scientific Data` IEEE Computing in Science & Engineering, 13 (2), pp. 40-51 (2011).
 """
 
@@ -139,6 +140,11 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		metavar = '*')
 	ap.add_argument("-ivc", "--importvoxelcontour",
 		help = "Import a volume display it as 3D contourd. The import volume (Nifti, Minc, MGH) is required. Format: -ivc {0 image} {1 LUT} {2 vmin} {3 vmax} {4 Contour_Opacity} {5 Number_Contours}",
+		nargs = '*',
+		action = 'append',
+		metavar = '*')
+	ap.add_argument("-isc", "--importsurfacecontour",
+		help = "Import a freesurfer surface and annot file to create a contour map. E.g., -isc lh.midthickness lh.HCP-MMP1.annot -isc rh.midthickness rh.HCP-MMP1.annot. Format: -isc {0 surface} {1 annot}", 
 		nargs = '*',
 		action = 'append',
 		metavar = '*')
@@ -750,6 +756,7 @@ def run(opts):
 				surf.actor.mapper.interpolate_scalars_before_mapping = 0
 				surf.actor.property.backface_culling = True
 
+
 			else:
 				if opts.surfacesmoothing:
 					adjacency = create_adjac_vertex(v,f)
@@ -764,6 +771,37 @@ def run(opts):
 				surf.actor.mapper.interpolate_scalars_before_mapping = 0
 				surf.actor.property.backface_culling = True
 
+	if opts.importsurfacecontour:
+		for onum, options in enumerate(opts.importsurfacecontour):
+			v, f = convert_fs(str(options[0]))
+			if opts.surfacesmoothing:
+				adjacency = create_adjac_vertex(v,f)
+				v, f = vectorized_surface_smooth(v, f, adjacency,
+					number_of_iter = int(opts.surfacesmoothing[0]),
+					mode = str(opts.smoothingtype[0]))
+			labels, ctab, names = nib.freesurfer.read_annot(str(options[1]))
+
+			# get the list of faces where all values are not equal
+			a = [len(set(labels[f[k]])) != 1 for k in range(len(f))]
+			
+			scalar_out = np.zeros_like(labels).astype(np.float)
+			scalar_out[np.unique(f[a])] = 1
+
+			surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
+				scalars = scalar_out, 
+				vmin = 0.5,
+				vmax = 1,
+				opacity = 0.6,
+				name = os.path.basename(str(options[1])))
+
+			sc_cmap_array = np.ones((256,4))*0
+			sc_cmap_array[:,3] = 255
+			sc_cmap_array[0] = [255,255,255,0]
+			surf.actor.mapper.interpolate_scalars_before_mapping = 0
+			surf.actor.property.backface_culling = True
+			surf.module_manager.scalar_lut_manager.lut.table = sc_cmap_array
+
+
 
 	if opts.savesnapshots:
 
@@ -771,34 +809,34 @@ def run(opts):
 
 		surf.scene.x_minus_view()
 		savename = '%s_left.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, magnification=5)
+		mlab.savefig(savename, magnification=4)
 		correct_image(savename)
 		surf.scene.x_plus_view()
 		savename = '%s_right.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, magnification=5)
+		mlab.savefig(savename, magnification=4)
 		correct_image(savename)
 
 		surf.scene.y_minus_view()
 		savename = '%s_posterior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, magnification=5)
+		mlab.savefig(savename, magnification=4)
 		correct_image(savename, rotate = 270, b_transparent = True)
 		surf.scene.y_plus_view()
 		savename = '%s_anterior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, magnification=5)
+		mlab.savefig(savename, magnification=4)
 		correct_image(savename, rotate = 90, b_transparent = True)
 
 		surf.scene.z_minus_view()
 		savename = '%s_inferior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, magnification=5)
+		mlab.savefig(savename, magnification=4)
 		correct_image(savename)
 		surf.scene.z_plus_view()
 		savename = '%s_superior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, magnification=5)
+		mlab.savefig(savename, magnification=4)
 		correct_image(savename)
 
 		surf.scene.isometric_view()
 		savename = '%s_isometric.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, magnification=5)
+		mlab.savefig(savename, magnification=4)
 		correct_image(savename)
 
 		rl_cmap = colors.ListedColormap(cmap_array[:,0:3]/255)
