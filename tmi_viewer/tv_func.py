@@ -19,6 +19,7 @@
 
 import os
 import sys
+import imageio
 import numpy as np
 import warnings
 import nibabel as nib
@@ -26,7 +27,6 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import matplotlib.image as mpimg
 from scipy import ndimage
-import scipy.misc as misc
 from scipy.special import erf
 import matplotlib.cbook
 from skimage import filters
@@ -279,7 +279,7 @@ def get_cmap_array(lut, background_alpha = 255, image_alpha = 1.0, zero_lower = 
 
 # Remove black from png
 def correct_image(img_name, rotate = None, b_transparent = True, flip = False):
-	img = misc.imread(img_name)
+	img = imageio.imread(img_name)
 	if b_transparent:
 		if img_name.endswith('.png'):
 			rows = img.shape[0]
@@ -299,7 +299,7 @@ def correct_image(img_name, rotate = None, b_transparent = True, flip = False):
 		img = ndimage.rotate(img, float(rotate))
 	if flip:
 		img = img[:,::-1,:]
-	misc.imsave(img_name, img)
+	imageio.imsave(img_name, img)
 
 # add coordinates to the image slices
 def add_text_to_img(image_file, add_txt, opacity = 200, color = [0,0,0]):

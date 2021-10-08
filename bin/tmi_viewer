@@ -30,15 +30,18 @@ from tfce_mediation.pyfunc import convert_voxel, convert_fs, write_colorbar, cre
 from tmi_viewer.tv_func import check_byteorder, apply_affine_to_scalar_field, display_matplotlib_luts, get_cmap_array, correct_image, autothreshold, write_dict, make_html, apply_affine_to_contour3d
 from tmi_viewer.version import __version__
 
-# hopefully safer loading of mayavi
-if 'QT_API' not in os.environ:
-	os.environ['QT_API'] = 'pyqt'
 try:
 	from mayavi import mlab
 except:
-	print("Trying pyside")
-	os.environ['QT_API'] = 'pyside'
-	from mayavi import mlab
+	# hopefully safer loading of mayavi
+	if 'QT_API' not in os.environ:
+		os.environ['QT_API'] = 'pyqt'
+	try:
+		from mayavi import mlab
+	except:
+		print("Trying pyside")
+		os.environ['QT_API'] = 'pyside'
+		from mayavi import mlab
 
 
 
@@ -221,6 +224,9 @@ def run(opts):
 		else:
 			print("Error: no surface or volume imports (use -iv or -ifs).")
 			sys.exit()
+
+	if opts.savesnapshots:
+		mlab.options.offscreen = True
 
 	# load tmi
 	if opts.inputtmi:
@@ -694,8 +700,11 @@ def run(opts):
 			surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
-	if opts.importfreesurfer: # -ifs {0 surface} {1 mgh} {2 LUT} {3 alpha} {4 vmin} {5 vmax}
+	if opts.importfreesurfer: # -ifs {0 surface} {1 mgh} {2 LUT} {3 alpha} {4 vmin} {5 vmax} {6 opacity}
+
 		for onum, options in enumerate(opts.importfreesurfer):
+#			print(options)
+#			print(len(options))
 			#defaults
 			paint_scalar = True
 			vmin = opts.thresholds[0]
@@ -715,12 +724,16 @@ def run(opts):
 				cmap_array = get_cmap_array(str(options[2]), int(options[3]))
 				vmin = float(options[4])
 				vmax = float(options[5])
+			elif len(options) == 7:
+				cmap_array = get_cmap_array(str(options[2]), int(options[3]))
+				vmin = float(options[4])
+				vmax = float(options[5])
+				socc = float(options[6])
 			else:
-				print("Error -d must have one to six inputs (-ifs {0 surface} {1 mgh} {2 LUT} {3 alpha} {4 vmin} {5 vmax})")
+				print("Error -d must have one to seven inputs (-ifs {0 surface} {1 mgh} {2 LUT} {3 alpha} {4 vmin} {5 vmax} {6 surface opacity})")
 				sys.exit()
 
 			v, f = convert_fs(str(options[0]))
-
 			if paint_scalar:
 				invol = nib.load(options[1]).get_data()
 				if invol.ndim == 3:
@@ -739,24 +752,28 @@ def run(opts):
 				if opts.autotheshold and len(options) < 5:
 					vmin, vmax = autothreshold(scalar_data, threshtype, opts.zthresh[0])
 					print("%s\t%s\t[%.3g, %.3g]" % (os.path.basename(options[0]), os.path.basename(options[1]), vmin, vmax))
-
 				if opts.surfacesmoothing:
 					adjacency = create_adjac_vertex(v,f)
 					v, f, scalar_data = vectorized_surface_smooth(v, f, adjacency,
 						number_of_iter = int(opts.surfacesmoothing[0]),
 						scalar = scalar_data,
 						mode = str(opts.smoothingtype[0]))
-
-				surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
-					scalars = scalar_data, 
-					vmin = vmin,
-					vmax = vmax,
-					name = os.path.basename(str(options[1])))
+				if len(options) == 7:
+					surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
+						scalars = scalar_data, 
+						vmin = vmin,
+						vmax = vmax,
+						opacity = socc,
+						name = os.path.basename(str(options[1])))
+				else:
+					surf = mlab.triangular_mesh(v[:,0], v[:,1], v[:,2], f,
+						scalars = scalar_data, 
+						vmin = vmin,
+						vmax = vmax,
+						name = os.path.basename(str(options[1])))
 				surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 				surf.actor.mapper.interpolate_scalars_before_mapping = 0
 				surf.actor.property.backface_culling = True
-
-
 			else:
 				if opts.surfacesmoothing:
 					adjacency = create_adjac_vertex(v,f)
@@ -797,16 +814,15 @@ def run(opts):
 			sc_cmap_array = np.ones((256,4))*0
 			sc_cmap_array[:,3] = 255
 			sc_cmap_array[0] = [255,255,255,0]
-			surf.actor.mapper.interpolate_scalars_before_mapping = 0
+			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 			surf.actor.property.backface_culling = True
 			surf.module_manager.scalar_lut_manager.lut.table = sc_cmap_array
-
+		surf.scene.anti_aliasing_frames = 0
 
 
 	if opts.savesnapshots:
 
 		surf.scene.background = (0,0,0)
-
 		surf.scene.x_minus_view()
 		savename = '%s_left.%s'  % (opts.savesnapshots[0], opts.savetype[0])
 		mlab.savefig(savename, magnification=4)
@@ -845,6 +861,8 @@ def run(opts):
 #			make_html(opts.inputtmi[0], opts.savesnapshots[0], opts.lookuptable[0], "%s.html" % opts.savesnapshots[0])
 #		else:
 #			make_html(opts.savesnapshots[0], opts.savesnapshots[0], opts.lookuptable[0], "%s.html" % opts.savesnapshots[0])
+
+
 		mlab.clf()
 		quit()
 
