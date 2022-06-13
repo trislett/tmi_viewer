@@ -168,6 +168,11 @@ def getArgumentParser(ap = ap.ArgumentParser(description = DESCRIPTION)):
 		nargs = 1,
 		type = str,
 		metavar = 'basename')
+	ap.add_argument("-sm", "--savemode",
+		help = "Set the snapshot directions in a single string: x = sagittal, y = coronal, z = axial, iso = isometric (e.g. -sm xyz). Default is: %(default)s", 
+		default = ['x'],
+		type = str,
+		metavar = 'xyziso')
 	ap.add_argument("--savetype",
 		help = "Choose output snapshot type by file extension. Default is: %(default)s", 
 		nargs = 1,
@@ -701,11 +706,7 @@ def run(opts):
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 
 	if opts.importfreesurfer: # -ifs {0 surface} {1 mgh} {2 LUT} {3 alpha} {4 vmin} {5 vmax} {6 opacity}
-
 		for onum, options in enumerate(opts.importfreesurfer):
-#			print(options)
-#			print(len(options))
-			#defaults
 			paint_scalar = True
 			vmin = opts.thresholds[0]
 			vmax = opts.thresholds[1]
@@ -774,6 +775,10 @@ def run(opts):
 				surf.module_manager.scalar_lut_manager.lut.table = cmap_array
 				surf.actor.mapper.interpolate_scalars_before_mapping = 0
 				surf.actor.property.backface_culling = True
+				if opts.savesnapshots:
+					print("legend: %s_%s" % (opts.savesnapshots[0], options[2]))
+					rl_cmap = colors.ListedColormap(cmap_array[:,0:3]/255)
+					write_colorbar(opts.thresholds, rl_cmap, "%s_%s" % (opts.savesnapshots[0], options[2]))
 			else:
 				if opts.surfacesmoothing:
 					adjacency = create_adjac_vertex(v,f)
@@ -787,6 +792,7 @@ def run(opts):
 					color = (1, 1, 1))
 				surf.actor.mapper.interpolate_scalars_before_mapping = 0
 				surf.actor.property.backface_culling = True
+
 
 	if opts.importsurfacecontour:
 		for onum, options in enumerate(opts.importsurfacecontour):
@@ -817,55 +823,51 @@ def run(opts):
 			surf.actor.mapper.interpolate_scalars_before_mapping = 1
 			surf.actor.property.backface_culling = True
 			surf.module_manager.scalar_lut_manager.lut.table = sc_cmap_array
+			surf.actor.actor.force_opaque = True
 		surf.scene.anti_aliasing_frames = 0
 
-
 	if opts.savesnapshots:
-
+		surf.scene.parallel_projection = True
 		surf.scene.background = (0,0,0)
 		surf.scene.x_minus_view()
-		savename = '%s_left.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, magnification=4)
-		correct_image(savename)
-		surf.scene.x_plus_view()
-		savename = '%s_right.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, magnification=4)
-		correct_image(savename)
-
-		surf.scene.y_minus_view()
-		savename = '%s_posterior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, magnification=4)
-		correct_image(savename, rotate = 270, b_transparent = True)
-		surf.scene.y_plus_view()
-		savename = '%s_anterior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, magnification=4)
-		correct_image(savename, rotate = 90, b_transparent = True)
-
-		surf.scene.z_minus_view()
-		savename = '%s_inferior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, magnification=4)
-		correct_image(savename)
-		surf.scene.z_plus_view()
-		savename = '%s_superior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, magnification=4)
-		correct_image(savename)
-
-		surf.scene.isometric_view()
-		savename = '%s_isometric.%s'  % (opts.savesnapshots[0], opts.savetype[0])
-		mlab.savefig(savename, magnification=4)
-		correct_image(savename)
-
+		if 'x' in opts.savemode[0]:
+			savename = '%s_left.%s'  % (opts.savesnapshots[0], opts.savetype[0])
+			mlab.savefig(savename, magnification=4)
+			correct_image(savename)
+			surf.scene.x_plus_view()
+			savename = '%s_right.%s'  % (opts.savesnapshots[0], opts.savetype[0])
+			mlab.savefig(savename, magnification=4)
+			correct_image(savename)
+		if 'y' in opts.savemode[0]:
+			surf.scene.y_minus_view()
+			savename = '%s_posterior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
+			mlab.savefig(savename, magnification=4)
+			correct_image(savename, rotate = 270, b_transparent = True)
+			surf.scene.y_plus_view()
+			savename = '%s_anterior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
+			mlab.savefig(savename, magnification=4)
+			correct_image(savename, rotate = 90, b_transparent = True)
+		if 'z' in opts.savemode[0]:
+			surf.scene.z_minus_view()
+			savename = '%s_inferior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
+			mlab.savefig(savename, magnification=4)
+			correct_image(savename)
+			surf.scene.z_plus_view()
+			savename = '%s_superior.%s'  % (opts.savesnapshots[0], opts.savetype[0])
+			mlab.savefig(savename, magnification=4)
+			correct_image(savename)
+		if 'iso' in opts.savemode[0]:
+			surf.scene.isometric_view()
+			savename = '%s_isometric.%s'  % (opts.savesnapshots[0], opts.savetype[0])
+			mlab.savefig(savename, magnification=4)
+			correct_image(savename)
 		rl_cmap = colors.ListedColormap(cmap_array[:,0:3]/255)
-		write_colorbar(opts.thresholds, rl_cmap, "%s_%s" % (opts.savesnapshots[0], opts.lookuptable[0]))
-#		if opts.inputtmi:
-#			make_html(opts.inputtmi[0], opts.savesnapshots[0], opts.lookuptable[0], "%s.html" % opts.savesnapshots[0])
-#		else:
-#			make_html(opts.savesnapshots[0], opts.savesnapshots[0], opts.lookuptable[0], "%s.html" % opts.savesnapshots[0])
-
-
+		if not opts.importfreesurfer:
+			write_colorbar(opts.thresholds, rl_cmap, "%s_%s" % (opts.savesnapshots[0], opts.lookuptable[0]))
 		mlab.clf()
 		quit()
 
+	surf.scene.parallel_projection = True
 	surf.scene.background = (0,0,0)
 	mlab.show()
 
