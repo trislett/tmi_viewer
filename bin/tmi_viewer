@@ -30,20 +30,8 @@ from tfce_mediation.pyfunc import convert_voxel, convert_fs, write_colorbar, cre
 from tmi_viewer.tv_func import check_byteorder, apply_affine_to_scalar_field, display_matplotlib_luts, get_cmap_array, correct_image, autothreshold, write_dict, make_html, apply_affine_to_contour3d
 from tmi_viewer.version import __version__
 
-try:
-	from mayavi import mlab
-except:
-	# hopefully safer loading of mayavi
-	if 'QT_API' not in os.environ:
-		os.environ['QT_API'] = 'pyqt'
-	try:
-		from mayavi import mlab
-	except:
-		print("Trying pyside")
-		os.environ['QT_API'] = 'pyside'
-		from mayavi import mlab
-
-
+from mayavi import mlab
+os.environ['QT_API'] = 'pyqt6'
 
 DESCRIPTION = """
 tmi_viewer: Displays multimodal neuroimaging data (surfaces and volumes) in the same space from a TMI file (although TMI files are not required). This program relies on Mayavi, and settings can changed using the Mayavi interactive session.
