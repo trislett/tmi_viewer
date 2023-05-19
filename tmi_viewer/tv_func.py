@@ -31,16 +31,16 @@ from scipy.special import erf
 import matplotlib.cbook
 from skimage import filters
 
-#from mayavi import mlab
+from mayavi import mlab
 
-if 'QT_API' not in os.environ:
-	os.environ['QT_API'] = 'pyqt'
-try:
-	from mayavi import mlab
-except:
-	print("Trying pyside")
-	os.environ['QT_API'] = 'pyside'
-	from mayavi import mlab
+#if 'QT_API' not in os.environ:
+#	os.environ['QT_API'] = 'pyqt'
+#try:
+#	from mayavi import mlab
+#except:
+#	print("Trying pyside")
+#	os.environ['QT_API'] = 'pyside'
+#	from mayavi import mlab
 
 
 # makes sure that endianess is correct for the system

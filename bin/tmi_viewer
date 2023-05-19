@@ -31,7 +31,7 @@ from tmi_viewer.tv_func import check_byteorder, apply_affine_to_scalar_field, di
 from tmi_viewer.version import __version__
 
 from mayavi import mlab
-os.environ['QT_API'] = 'pyqt6'
+#os.environ['QT_API'] = 'pyqt6'
 
 DESCRIPTION = """
 tmi_viewer: Displays multimodal neuroimaging data (surfaces and volumes) in the same space from a TMI file (although TMI files are not required). This program relies on Mayavi, and settings can changed using the Mayavi interactive session.
@@ -311,7 +311,7 @@ def run(opts):
 			scalar_data[mask] = image_array[0][start:end,c_contrast]
 
 			invol = nib.as_closest_canonical(nib.Nifti1Image(scalar_data, affine_array[c_mask]))
-			data = check_byteorder(invol.get_data())
+			data = check_byteorder(np.asanyarray(invol.dataobj))
 
 			if opts.autotheshold and len(options) < 4:
 				vmin, vmax = autothreshold(data, threshtype, opts.zthresh[0])
@@ -365,7 +365,7 @@ def run(opts):
 				sys.exit()
 
 			invol = nib.as_closest_canonical(nib.load(str(options[0])))
-			data = check_byteorder(invol.get_data())
+			data = check_byteorder(np.asanyarray(invol.dataobj))
 
 			if opts.autotheshold and len(options) < 3:
 				vmin, vmax = autothreshold(data, threshtype, opts.zthresh[0])
@@ -493,7 +493,7 @@ def run(opts):
 
 
 			invol = nib.as_closest_canonical(nib.Nifti1Image(scalar_data, affine_array[c_mask]))
-			data = check_byteorder(invol.get_data())
+			data = check_byteorder(np.asanyarray(invol.dataobj))
 
 			v, f, scalar_data = convert_voxel(data, affine = invol.affine)
 
@@ -546,7 +546,7 @@ def run(opts):
 				sys.exit()
 
 			invol = nib.as_closest_canonical(nib.load(str(options[0])))
-			data = check_byteorder(invol.get_data())
+			data = check_byteorder(np.asanyarray(invol.dataobj))
 
 			if opts.autotheshold and len(options) < 3:
 				vmin, vmax = autothreshold(data, threshtype, opts.zthresh[0])
@@ -606,7 +606,7 @@ def run(opts):
 			scalar_data[mask] = image_array[0][start:end,c_contrast]
 
 			invol = nib.as_closest_canonical(nib.Nifti1Image(scalar_data, affine_array[c_mask]))
-			data = check_byteorder(invol.get_data())
+			data = check_byteorder(np.asanyarray(invol.dataobj))
 
 			if opts.autotheshold and len(options) < 4:
 				vmin, vmax = autothreshold(data, threshtype, opts.zthresh[0])
@@ -669,7 +669,7 @@ def run(opts):
 				sys.exit()
 
 			invol =  nib.as_closest_canonical(nib.load(str(options[0])))
-			data = check_byteorder(invol.get_data())
+			data = check_byteorder(np.asanyarray(invol.dataobj))
 
 			if opts.autotheshold and len(options) < 3:
 				vmin, vmax = autothreshold(data, threshtype, opts.zthresh[0])
@@ -724,7 +724,8 @@ def run(opts):
 
 			v, f = convert_fs(str(options[0]))
 			if paint_scalar:
-				invol = nib.load(options[1]).get_data()
+				img = nib.load(options[1])
+				invol = np.asanyarray(img.dataobj)
 				if invol.ndim == 3:
 					pass
 				elif opts.selectmghvolume:
