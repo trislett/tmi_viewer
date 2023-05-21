@@ -26,8 +26,8 @@ import matplotlib.colors as colors
 
 from tfce_mediation.tm_io import read_tm_filetype
 from tfce_mediation.tm_func import print_tmi_history
-from tfce_mediation.pyfunc import convert_voxel, convert_fs, write_colorbar, create_adjac_vertex, vectorized_surface_smooth
-from tmi_viewer.tv_func import check_byteorder, apply_affine_to_scalar_field, display_matplotlib_luts, get_cmap_array, correct_image, autothreshold, write_dict, make_html, apply_affine_to_contour3d
+from tfce_mediation.pyfunc import convert_fs, write_colorbar, create_adjac_vertex, vectorized_surface_smooth
+from tmi_viewer.tv_func import convert_voxel, check_byteorder, apply_affine_to_scalar_field, display_matplotlib_luts, get_cmap_array, correct_image, autothreshold, write_dict, make_html, apply_affine_to_contour3d
 from tmi_viewer.version import __version__
 
 from mayavi import mlab
@@ -668,14 +668,14 @@ def run(opts):
 				print("Error -iv must have one to five inputs (-iv {0 image} {1 LUT} {2 vmin} {3 vmax} {4 opacity})")
 				sys.exit()
 
-			invol =  nib.as_closest_canonical(nib.load(str(options[0])))
+			invol = nib.as_closest_canonical(nib.load(str(options[0])))
 			data = check_byteorder(np.asanyarray(invol.dataobj))
 
 			if opts.autotheshold and len(options) < 3:
 				vmin, vmax = autothreshold(data, threshtype, opts.zthresh[0])
 				print("%s\t[%.3g, %.3g]" % (os.path.basename(options[0]), vmin, vmax))
 
-			v, f, scalar_data = convert_voxel(data, affine = invol.get_affine())
+			v, f, scalar_data = convert_voxel(data, affine = invol.affine)
 
 			if opts.surfacesmoothing:
 				adjacency = create_adjac_vertex(v,f)

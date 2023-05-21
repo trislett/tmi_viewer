@@ -42,6 +42,60 @@ from mayavi import mlab
 #	os.environ['QT_API'] = 'pyside'
 #	from mayavi import mlab
 
+def convert_voxel(img_data, affine = None, threshold = None, data_mask = None, absthreshold = None):
+	"""
+	Converts a voxel image to a surface including outputs voxel values to paint vertex surface.
+	
+	Parameters
+	----------
+	img_data : array
+		image array
+	affine : array
+		 affine [4x4] to convert vertices values to native space (Default = None)
+	data_mask : array
+		use a mask to create a surface backbone (Default = None)
+	threshold : float
+		threshold for output of voxels (Default = None)
+	absthreshold : float
+		threshold for output of abs(voxels) (Default = None)
+		
+	Returns
+	-------
+		v : array
+			vertices
+		f : array
+			faces
+		values : array
+			scalar values
+	
+	"""
+	try:
+		from skimage import measure
+	except:
+		print("Error skimage is required")
+		quit()
+
+	if threshold is not None:
+		print("Zeroing data less than threshold = %1.2f" % threshold)
+		img_data[img_data<threshold] = 0
+	if absthreshold is not None:
+		print("Zeroing absolute values less than threshold = %1.2f" % absthreshold)
+		img_data[np.abs(img_data)<absthreshold] = 0
+	if data_mask is not None:
+		print("Including mask")
+		data_mask *= .1
+		data_mask[img_data!=0] = img_data[img_data!=0]
+		del img_data
+		img_data = np.copy(data_mask)
+	try:
+		v, f, _, values = measure.marching_cubes(img_data)
+		if affine is not None:
+			print("Applying affine transformation")
+			v = nib.affines.apply_affine(affine,v)
+	except:
+		print("No voxels above threshold")
+		v = f = values = []
+	return v, f, values
 
 # makes sure that endianess is correct for the system
 def check_byteorder(np_array):
